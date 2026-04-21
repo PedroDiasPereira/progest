@@ -1174,7 +1174,7 @@ function barH(t, segH, segDur){
 
 // STATE
 const S = {
-  page:'dashboard', viewBy:'project', zoom:'week', offset:0,
+  page:'dashboard', viewBy:'project', zoom:'week', offset:0, _wlView:'week', _wlOffset:0,
   statusFilter:['todo','doing','paused','hold'],
   selectedTags:[], // multi-tag filter
   vbFilter:[], // selected projects/teams/resources for view
@@ -1378,162 +1378,145 @@ function renderDash(){
   let wdaysLeft=0;
   for(let d=today;d<today+60&&wdaysLeft<LOOK_AHEAD;d++){ if(!isNW(d)) wdaysLeft++; }
 
-  function getResLoad(resId){
-    const res=getRes(resId); if(!res) return 0;
-    const cap=(res.dailyCap||8)*wdaysLeft;
-    if(cap===0) return 0;
-    const pending=TASKS.filter(t=>t.resId===resId&&t.status!=='done'&&t.status!=='cancelled')
-      .reduce((s,t)=>s+Math.max(0,tHours(t)-logH(t)),0);
-    return pending/cap; // 0 = empty, 1 = full, >1 = overloaded
+  // ── Workload: Day/Week/Month ─────────────────────────────────
+  const wlView=S._wlView||'week';
+  const wlOffset=S._wlOffset||0;
+
+  function wlRange(){
+    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if(wlView==='day'){
+      const d=GANTT_TODAY+wlOffset;
+      return {start:d,end:d,label:sd(d)};
+    }
+    if(wlView==='week'){
+      const dt=gDate(GANTT_TODAY+wlOffset*7);
+      const dow=dt.getDay(); const mo=dow===0?-6:1-dow;
+      const mon=GANTT_TODAY+wlOffset*7+mo;
+      const fri=mon+4;
+      const dm=gDate(mon),df=gDate(fri);
+      return {start:mon,end:fri,label:`${dm.getDate()} ${MN[dm.getMonth()]} – ${df.getDate()} ${MN[df.getMonth()]}`};
+    }
+    const dt=gDate(GANTT_TODAY);
+    const adj=new Date(dt.getFullYear(),dt.getMonth()+wlOffset,1);
+    const dim=new Date(adj.getFullYear(),adj.getMonth()+1,0).getDate();
+    const s=Math.round((adj-GANTT_ORIGIN)/86400000)+1;
+    const MN2=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return {start:s,end:s+dim-1,label:`${MN2[adj.getMonth()]} ${adj.getFullYear()}`};
   }
 
-  function makeGaugeSVG(load, color, size=110, label='', sublabel=''){
-    const pct=Math.min(load,1.5); // cap display at 150%
-    // Semicircle gauge: arc from -180° to 0° (left to right)
-    const R=size*0.38, cx=size/2, cy=size*0.62;
-    const startAngle=-Math.PI, sweepAngle=Math.PI;
-    // Zones: 0-70% green, 70-90% yellow, 90-110% orange, 110%+ red
-    const zones=[
-      {from:0,to:.7,col:'#22c55e'},
-      {from:.7,to:.9,col:'#f59e0b'},
-      {from:.9,to:1.1,col:'#f0a928'},
-      {from:1.1,to:1.5,col:'#f05252'},
-    ];
-    const toXY=(frac)=>{
-      const a=startAngle+sweepAngle*frac;
-      return [cx+R*Math.cos(a), cy+R*Math.sin(a)];
-    };
-    const arc=(f1,f2,r,col,thick)=>{
-      const [x1,y1]=toXY(f1), [x2,y2]=toXY(f2);
-      const large=f2-f1>0.5?1:0;
-      return `<path d="M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2}" fill="none" stroke="${col}" stroke-width="${thick}" stroke-linecap="round"/>`;
-    };
-    // Background track
-    let svg=`<svg width="${size}" height="${size*0.72}" viewBox="0 0 ${size} ${size*0.72}" xmlns="http://www.w3.org/2000/svg">`;
-    svg+=arc(0,1,R,'rgba(255,255,255,.06)',size*0.065);
-    // Zone arcs
-    zones.forEach(z=>{ svg+=arc(z.from/1.5,z.to/1.5,R,z.col+'44',size*0.065); });
-    // Value arc
-    const valFrac=Math.min(pct/1.5,1);
-    const valCol=load>=1.1?'#f05252':load>=0.9?'#f0a928':load>=0.7?'#f59e0b':'#22c55e';
-    if(valFrac>0.02) svg+=arc(0,valFrac,R,valCol,size*0.072);
-    // Needle
-    const needleAngle=startAngle+sweepAngle*Math.min(pct/1.5,1);
-    const nx=cx+R*0.82*Math.cos(needleAngle), ny=cy+R*0.82*Math.sin(needleAngle);
-    svg+=`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${valCol}" stroke-width="${size*0.022}" stroke-linecap="round"/>`;
-    svg+=`<circle cx="${cx}" cy="${cy}" r="${size*0.05}" fill="${valCol}" opacity=".9"/>`;
-    // Tick marks at 0, 50%, 100%
-    [[0,'0'],[.5,'50%'],[1,'100%']].forEach(([f,t])=>{
-      const [tx,ty]=toXY(f/1.5*1);
-      const [tx2,ty2]=[cx+(R+size*.05)*Math.cos(startAngle+sweepAngle*f/1.5*(1)),cy+(R+size*.05)*Math.sin(startAngle+sweepAngle*f/1.5*(1))];
-      // just ticks, no text for small gauges
+  function wdInRange(s,e){ let n=0; for(let d=s;d<=e;d++) if(!isNW(d)) n++; return Math.max(1,n); }
+
+  function resHrsInRange(resId,s,e){
+    let logged=0,planned=0,overdue=0;
+    TASKS.forEach(t=>{
+      if(t.resId!==resId&&!(t.coResIds||[]).includes(resId)) return;
+      if(t.status==='cancelled'||t.status==='done') return;
+      (t.timeLogs||[]).forEach(l=>{ const di=dateToIdx(l.date); if(di&&di>=s&&di<=e) logged+=l.hours||0; });
+      const sc=t._sched||{};
+      Object.entries(sc).forEach(([d,h])=>{ const di=+d; if(di>=s&&di<=e) planned+=h||0; });
+      if(t.deadline){ const dl=dateToIdx(t.deadline);
+        if(dl) Object.entries(sc).forEach(([d,h])=>{ if(+d>dl&&+d>=s&&+d<=e) overdue+=h||0; }); }
     });
-    // Percentage label
-    const pctText=Math.round(load*100)+'%';
-    svg+=`<text x="${cx}" y="${cy-size*.04}" text-anchor="middle" font-size="${size*.16}" font-weight="700" fill="${valCol}" font-family="DM Mono,monospace">${pctText}</text>`;
-    if(label) svg+=`<text x="${cx}" y="${cy+size*.1}" text-anchor="middle" font-size="${size*.1}" fill="rgba(255,255,255,.7)" font-family="DM Sans,sans-serif" font-weight="600">${label.length>14?label.slice(0,13)+'…':label}</text>`;
-    svg+='</svg>';
-    return svg;
+    return {logged,planned,overdue};
   }
 
-  // Build team + resource gauges
+  function getResFreeDate2(resId){
+    const tasks=TASKS.filter(t=>t.resId===resId&&t.status!=='done'&&t.status!=='cancelled');
+    let last=0;
+    tasks.forEach(t=>{ const sc=t._sched||{};
+      const days=Object.keys(sc).map(Number).filter(d=>sc[d]>0.001);
+      const e=days.length?Math.max(...days):tEnd(t); if(e>last) last=e; });
+    return last||null;
+  }
+
+  function getTeamFreeDate2(ids){ const ds=ids.map(getResFreeDate2).filter(Boolean); return ds.length?Math.max(...ds):null; }
+
+  function freeLabel2(d){
+    if(!d||d<=GANTT_TODAY) return '<span style="color:var(--ok);font-size:9px">✓ Free now</span>';
+    const diff=d-GANTT_TODAY;
+    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dt=gDate(d);
+    if(diff<=7) return `<span style="color:var(--warn);font-size:9px">Free in ${diff}d</span>`;
+    return `<span style="color:var(--fg3);font-size:9px">Free ${dt.getDate()} ${MN[dt.getMonth()]}</span>`;
+  }
+
   const activeTeams=TEAMS.filter(tm=>{
     if(tm.showInDash===false) return false;
-    const resInTm=RESOURCES.filter(r=>r.teams&&r.teams.includes(tm.id)&&r.showInDash!==false);
-    return resInTm.length>0;
+    return RESOURCES.some(r=>r.showInDash!==false&&(r.teams||[]).includes(tm.id));
   });
 
-  let gaugeHTML='<div class="card" style="margin-top:16px"><div class="ch"><span class="ct">Workload</span><span style="font-size:9px;color:var(--fg3)">next 20 working days</span></div><div class="cb" style="padding:4px"><div style="font-size:9px;color:var(--fg3);margin-bottom:8px">Verde &lt;70% · Amarelo 70-90% · Vermelho &gt;100%</div>';
+  const wlRange2=wlRange();
+  const wdays=wdInRange(wlRange2.start,wlRange2.end);
 
-  // Grid: each team = one card with team gauge + resource row
-  // Calculate when a resource becomes free (last task ends)
-  function getResFreeDate(resId){
-    const tasks=TASKS.filter(t=>t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.start);
-    if(!tasks.length) return null;
-    let lastDay=0;
-    tasks.forEach(t=>{
-      const sched=t._sched||{};
-      const days=Object.keys(sched).map(Number).filter(d=>sched[d]>0.001);
-      const last=days.length?Math.max(...days):tEnd(t);
-      if(last>lastDay) lastDay=last;
-    });
-    return lastDay>0?lastDay:null;
-  }
-
-  function getTeamFreeDate(resIds){
-    const dates=resIds.map(id=>getResFreeDate(id)).filter(Boolean);
-    return dates.length?Math.max(...dates):null;
-  }
-
-  function _freeLabel(dayIdx){
-    if(!dayIdx) return '<span style="color:var(--ok);font-size:9px;font-weight:700">✓ Free now</span>';
-    const dt=gDate(dayIdx);
-    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const isToday=dayIdx===GANTT_TODAY;
-    const diff=dayIdx-GANTT_TODAY;
-    let label=`${dt.getDate()} ${MN[dt.getMonth()]}`;
-    if(diff<=0) label='<span style="color:var(--ok)">✓ Done</span>';
-    else if(diff<=7) label=`<span style="color:var(--warn)">in ${diff}d</span>`;
-    else label=`<span style="color:var(--fg2)">${label}</span>`;
-    return `<span style="font-size:9px">Free: ${label}</span>`;
-  }
-
-  gaugeHTML+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">`;
-  activeTeams.forEach(tm=>{
-    const tmResources=RESOURCES.filter(r=>r.teams&&r.teams.includes(tm.id)&&r.showInDash!==false);
-    if(!tmResources.length) return;
-    const tmPending=tmResources.reduce((s,r)=>s+TASKS.filter(t=>t.resId===r.id&&t.status!=='done'&&t.status!=='cancelled').reduce((ss,t)=>ss+Math.max(0,tHours(t)-logH(t)),0),0);
-    const tmCap=tmResources.reduce((s,r)=>(r.dailyCap||8)*wdaysLeft+s,0);
-    const tmLoad=tmCap>0?tmPending/tmCap:0;
-    const valCol=tmLoad>=1.1?'#f05252':tmLoad>=0.9?'#f0a928':tmLoad>=0.7?'#f59e0b':'#22c55e';
-
-    gaugeHTML+=`<div style="background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r12);padding:14px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="width:9px;height:9px;border-radius:50%;background:${tm.color}"></span>
-        <span style="font-size:12px;font-weight:700;color:var(--fg0)">${tm.name}</span>
-        <span style="font-size:9px;color:var(--fg3)">${tmResources.length}p</span>
-        <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
-          ${(()=>{
-            const pct=Math.min(tmLoad,1.5);
-            const R=26,cx=30,cy=30;
-            const a=-Math.PI+Math.PI*Math.min(pct/1.5,1);
-            const nx=cx+R*0.8*Math.cos(a),ny=cy+R*0.8*Math.sin(a);
-            const arc=(f1,f2,col)=>{const a1=-Math.PI+Math.PI*f1,a2=-Math.PI+Math.PI*f2,x1=cx+R*Math.cos(a1),y1=cy+R*Math.sin(a1),x2=cx+R*Math.cos(a2),y2=cy+R*Math.sin(a2),lg=f2-f1>.5?1:0;return `<path d="M${x1},${y1} A${R},${R} 0 ${lg},1 ${x2},${y2}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round"/>`};
-            return `<svg width="60" height="32" viewBox="0 0 60 32" style="overflow:visible">${arc(0,.467,'#22c55e44')}${arc(.467,.6,'#f59e0b44')}${arc(.6,.733,'#f0a92844')}${arc(.733,1,'#f0525244')}<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${valCol}" stroke-width="2.5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="3.5" fill="${valCol}"/></svg>`;
-          })()}
-          <span style="font-size:16px;font-weight:800;color:${valCol};font-family:var(--mono)">${Math.round(tmLoad*100)}%</span>
-        </span>
-      </div>
-      <!-- Team gauge compact -->
-      <div style="position:relative;height:8px;background:rgba(255,255,255,.06);border-radius:4px;margin-bottom:10px;overflow:hidden">
-        <div style="position:absolute;left:0;top:0;height:100%;width:${Math.min(tmLoad*100,100)}%;background:${valCol};border-radius:4px;transition:width .5s"></div>
-        <div style="position:absolute;left:70%;top:-2px;height:12px;width:1px;background:var(--warn);opacity:.5"></div>
-        <div style="position:absolute;left:90%;top:-2px;height:12px;width:1px;background:var(--danger);opacity:.5"></div>
-      </div>
-      <div style="font-size:9px;color:var(--fg3);margin-bottom:10px;display:flex;gap:10px;align-items:center">
-        <span>${_fmtHours(tmPending)} pending · ${_fmtHours(tmCap)} total cap.</span>
-        <span style="margin-left:auto">${_freeLabel(getTeamFreeDate(tmResources.map(r=>r.id)))}</span>
-      </div>
-      <!-- Resource mini-gauges row -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap">`;
-    tmResources.forEach(r=>{
-      const rLoad=getResLoad(r.id);
-      const rPending=TASKS.filter(t=>t.resId===r.id&&t.status!=='done'&&t.status!=='cancelled').reduce((s,t)=>s+Math.max(0,tHours(t)-logH(t)),0);
-      const rCol=rLoad>=1.1?'#f05252':rLoad>=0.9?'#f0a928':rLoad>=0.7?'#f59e0b':'#22c55e';
-      gaugeHTML+=`<div style="flex:1;min-width:60px">
-        <div style="font-size:9px;color:var(--fg2);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name.split(' ')[0]}</div>
-        <div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
-          <div style="height:100%;width:${Math.min(rLoad*100,100)}%;background:${rCol};border-radius:3px"></div>
+  let gaugeHTML=`<div class="card" style="margin-top:16px">
+    <div class="ch" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <span class="ct">Workload</span>
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-ic" onclick="S._wlOffset=(S._wlOffset||0)-1;renderDash()">‹</button>
+        <button class="btn btn-sm" onclick="S._wlOffset=0;renderDash()" style="font-size:9px;min-width:120px;text-align:center">${wlRange2.label}</button>
+        <button class="btn btn-sm btn-ic" onclick="S._wlOffset=(S._wlOffset||0)+1;renderDash()">›</button>
+        <div style="display:flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;margin-left:4px">
+          ${['day','week','month'].map(v=>`<button onclick="S._wlView='${v}';S._wlOffset=0;renderDash()" style="padding:3px 10px;font-size:9px;font-weight:600;border:none;cursor:pointer;background:${wlView===v?'var(--acc)':'transparent'};color:${wlView===v?'#fff':'var(--fg2)'};font-family:var(--font)">${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}
         </div>
-        <div style="font-size:8px;color:${rCol};margin-top:2px;font-family:var(--mono)">${Math.round(rLoad*100)}%</div>
-        <div style="margin-top:2px">${_freeLabel(getResFreeDate(r.id))}</div>
-      </div>`;
-    });
-    gaugeHTML+=`</div></div>`;
-  });
-  gaugeHTML+=`</div>`;
+      </div>
+    </div>
+    <div class="cb" style="padding:8px"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">`;
 
-  gaugeHTML+='</div></div>';
+  activeTeams.forEach(tm=>{
+    const tmRes=RESOURCES.filter(r=>r.showInDash!==false&&(r.teams||[]).includes(tm.id));
+    if(!tmRes.length) return;
+    const totalCap=tmRes.reduce((s,r)=>s+(r.dailyCap||8),0)*wdays;
+    let tmLogged=0,tmPlanned=0,tmOver=0;
+    tmRes.forEach(r=>{ const {logged,planned,overdue}=resHrsInRange(r.id,wlRange2.start,wlRange2.end);
+      tmLogged+=logged; tmPlanned+=planned; tmOver+=overdue; });
+    const tmUsed=tmLogged+tmPlanned;
+    const pct=totalCap>0?Math.round(tmUsed/totalCap*100):0;
+    const col=pct>=100?'var(--danger)':pct>=90?'var(--warn)':pct>=70?'#f59e0b':'var(--ok)';
+    const fd=getTeamFreeDate2(tmRes.map(r=>r.id));
+
+    gaugeHTML+=`<div style="background:var(--bg2);border:1px solid var(--bd)${pct>=100?';outline:1px solid rgba(240,82,82,.4)':''};border-radius:10px;padding:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${tm.color}"></span>
+          <span style="font-size:11px;font-weight:700">${tm.name}</span>
+          <span style="font-size:9px;color:var(--fg3)">${tmRes.length}p</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-size:18px;font-weight:800;color:${col};font-family:var(--mono)">${pct}%</span>
+          ${tmOver>0?`<span style="font-size:9px;font-weight:700;color:var(--danger);background:rgba(240,82,82,.12);padding:1px 6px;border-radius:4px">+${_fmtHours(tmOver)} OVR</span>`:''}
+        </div>
+      </div>
+      <div style="height:7px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:4px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--fg3);margin-bottom:8px">
+        <span>${_fmtHours(tmLogged)} logged · ${_fmtHours(tmPlanned)} sched · ${_fmtHours(totalCap)} cap</span>
+        ${freeLabel2(fd)}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${tmRes.map(r=>{
+          const {logged,planned,overdue:rOvr}=resHrsInRange(r.id,wlRange2.start,wlRange2.end);
+          const rUsed=logged+planned; const rCap=(r.dailyCap||8)*wdays;
+          const rPct=rCap>0?Math.round(rUsed/rCap*100):0;
+          const rCol=rPct>=100?'var(--danger)':rPct>=90?'var(--warn)':rPct>=70?'#f59e0b':'var(--ok)';
+          return `<div style="flex:1;min-width:65px;background:var(--bg3);border-radius:7px;padding:6px 8px">
+            <div style="font-size:9px;font-weight:600;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name.split(' ')[0]}</div>
+            <div style="height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;margin-bottom:4px">
+              <div style="height:100%;width:${Math.min(rPct,100)}%;background:${rCol};border-radius:2px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;gap:3px">
+              <span style="color:${rCol};font-weight:700;font-family:var(--mono)">${rPct}%</span>
+              ${rOvr>0?`<span style="color:var(--danger)">+${_fmtHours(rOvr)}</span>`:''}
+              <span style="color:var(--fg3)">${_fmtHours(rUsed)}/${_fmtHours(rCap)}</span>
+            </div>
+            <div style="margin-top:3px">${freeLabel2(getResFreeDate2(r.id))}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  gaugeHTML+=`</div></div></div>`;
 
   document.getElementById('dash-c').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
@@ -3098,7 +3081,8 @@ function renderReport(){
           </tr>`;}).join('')}
         </tbody>
       </table>
-    </div></div>`;
+    </div></div>
+    ${gaugeHTML}`;
   setTimeout(()=>{
     ['rp-t','rp-r'].forEach(id=>{if(S.charts[id])S.charts[id].destroy();});
     S.charts['rp-t']=new Chart(document.getElementById('rp-t'),{type:'bar',data:{labels:TEAMS.map(t=>t.name.split(' ')[0]),datasets:[{label:'Planned',data:TEAMS.map(tm=>TASKS.filter(t=>resInTeam(t.resId,tm.id)).reduce((s,t)=>s+tHours(t),0)),backgroundColor:'rgba(79,156,249,.3)',borderRadius:3},{label:'Logged',data:TEAMS.map(tm=>TASKS.filter(t=>resInTeam(t.resId,tm.id)).reduce((s,t)=>s+logH(t),0)),backgroundColor:'rgba(0,201,160,.4)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(37,47,69,.3)'},ticks:{color:'#6e7e9e',font:{size:9}}},y:{grid:{color:'rgba(37,47,69,.3)'},ticks:{color:'#6e7e9e',callback:v=>v+'h'}}}}});
