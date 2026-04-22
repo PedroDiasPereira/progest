@@ -436,7 +436,9 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
       <!-- ROW 1: Project info + deadline + edit -->
       <div id="dl-banner" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px">
         <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
-          <div style="font-size:16px;font-weight:700;color:var(--fg0)" id="proj-name-disp">PAZZI</div>
+          <select id="proj-selector" class="fi" style="font-size:13px;font-weight:700;padding:2px 6px;border:none;background:transparent;color:var(--fg0);cursor:pointer;max-width:160px" onchange="window._onProjSelectorChange(this.value)">
+            <option value="">All projects</option>
+          </select>
           <div style="width:1px;height:20px;background:var(--bd)"></div>
           <div><div style="font-size:8px;text-transform:uppercase;letter-spacing:.5px;color:var(--fg3)">Deadline</div><div style="font-size:13px;font-weight:600;color:var(--fg0)" id="pdl-v">—</div></div>
           <div style="width:1px;height:20px;background:var(--bd)"></div>
@@ -640,14 +642,16 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
 
 <!-- MILESTONE MODAL -->
-<div id="m-milestone" class="mbg" onclick="if(event.target===this)CM('m-milestone')">
+<div id="m-milestone" class="mbg">
   <div class="modal" style="width:480px;max-width:95vw">
     <div class="mh"><span class="mt" id="ms-modal-title">New Milestone</span><button class="mc" onclick="CM('m-milestone')">✕</button></div>
     <div class="mb">
       <div class="g2">
         <div class="fg" style="grid-column:span 2"><label class="fl">Name *</label><input class="fi" id="ms-name" placeholder="e.g. CFP Delivery"></div>
-        <div class="fg"><label class="fl">Date</label><input type="date" class="fi" id="ms-date" oninput="_updateMsColorAvailability()"></div>
-        <div class="fg"><label class="fl">Colour</label>
+        <div class="fg"><label class="fl">Date *</label><input type="date" class="fi" id="ms-date" oninput="_updateMsColorAvailability()"></div>
+        <div class="fg"><label class="fl">Project</label><select class="fi" id="ms-proj"><option value="">— all projects —</option></select></div>
+        <div class="fg" style="grid-column:span 2"><label class="fl">Notes</label><textarea class="fi" id="ms-notes" rows="2" style="resize:none" placeholder="Optional notes…"></textarea></div>
+        <div class="fg" style="grid-column:span 2"><label class="fl">Colour</label>
           <div style="display:flex;gap:8px;margin-top:6px" id="ms-colors">
             <div onclick="selMsCol(this,'#7b61ff')" data-col="#7b61ff" style="width:22px;height:22px;border-radius:50%;background:#7b61ff;cursor:pointer;border:3px solid white;box-shadow:0 0 0 2px #7b61ff"></div>
             <div onclick="selMsCol(this,'#00c9a0')" data-col="#00c9a0" style="width:22px;height:22px;border-radius:50%;background:#00c9a0;cursor:pointer;border:2px solid transparent"></div>
@@ -731,7 +735,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: TASK EDIT -->
-<div id="m-task" class="mbg" onclick="if(event.target===this)CM('m-task')">
+<div id="m-task" class="mbg">
 <div class="modal" style="width:660px;padding:24px 28px">
   <div class="mt-h" id="mt-h">New Task</div>
   <!-- Project selector -->
@@ -816,10 +820,14 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
     <div id="mt-team-err" style="font-size:10px;color:var(--danger);padding:0 8px 6px;display:none"></div>
   </div>
 
-  <!-- BLOCK 3: Tags & Notes -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+  <!-- BLOCK 3: Tags & Notes & Milestones -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
     <div class="fg" style="margin-bottom:0"><label class="fl">Tag(s) — comma separated</label><input class="fi" id="mt-tag" placeholder="e.g. ROB, CFP"></div>
     <div class="fg" style="margin-bottom:0"><label class="fl">Notes</label><textarea class="fi" id="mt-notes" rows="2" style="resize:none"></textarea></div>
+  </div>
+  <div class="fg" style="margin-bottom:12px">
+    <label class="fl">Milestones</label>
+    <div id="mt-ms-list" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:28px;padding:4px 0"></div>
   </div>
 
   <!-- Hidden fields -->
@@ -851,7 +859,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: LOG TIME -->
-<div id="m-log" class="mbg" onclick="if(event.target===this)CM('m-log')">
+<div id="m-log" class="mbg">
 <div class="modal" style="width:360px">
   <div class="mt-h">Log Time</div>
   <div class="mt-s" id="ml-ts">Select task</div>
@@ -871,7 +879,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: SPLIT -->
-<div id="m-split" class="mbg" onclick="if(event.target===this)CM('m-split')">
+<div id="m-split" class="mbg">
 <div class="modal" style="width:390px">
   <div class="mt-h">Split Task</div>
   <div class="mt-s" id="ms-inf"></div>
@@ -887,7 +895,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: ADD/EDIT PROJECT -->
-<div id="m-project" class="mbg" onclick="if(event.target===this)CM('m-project')">
+<div id="m-project" class="mbg">
 <div class="modal" style="width:520px">
   <div class="mt-h" id="mpr-h">New Project</div>
   <div class="mt-s">Project details</div>
@@ -913,7 +921,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: PROJECT DEADLINE -->
-<div id="m-proj" class="mbg" onclick="if(event.target===this)CM('m-proj')">
+<div id="m-proj" class="mbg">
 <div class="modal" style="width:310px">
   <div class="mt-h">Project Deadline</div>
   <div class="fg"><label class="fl">Date</label><input type="date" class="fi" id="proj-dl-inp"></div>
@@ -922,7 +930,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 </div>
 
 <!-- MODAL: FULL LOG -->
-<div id="m-flog" class="mbg" onclick="if(event.target===this)CM('m-flog')">
+<div id="m-flog" class="mbg">
 <div class="modal" style="width:540px;max-height:82vh;display:flex;flex-direction:column">
   <div class="mt-h mb16">Change Log</div>
   <div style="flex:1;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--r8)"><div id="flog-l" style="padding:3px 0"></div></div>
@@ -1174,7 +1182,7 @@ function barH(t, segH, segDur){
 
 // STATE
 const S = {
-  page:'dashboard', viewBy:'project', zoom:'week', offset:0, _wlView:'week', _wlOffset:0,
+  page:'dashboard', viewBy:'project', zoom:'week', offset:0, _wlView:'week', _wlOffset:0, _sortBy:'chrono',
   statusFilter:['todo','doing','paused','hold'],
   selectedTags:[], // multi-tag filter
   vbFilter:[], // selected projects/teams/resources for view
@@ -1555,25 +1563,35 @@ window.toggleMsFilter=(msId)=>{
 };
 function visTasks(){
   const search=(document.getElementById('g-search')?.value||'').toLowerCase();
-  return TASKS.filter(t=>{
-    if(_msFilter){ const ms=MILESTONES.find(m=>m.id===_msFilter); if(ms&&!(ms.taskIds||[]).includes(t.id)) return false; }
-    if(!S.statusFilter.includes(t.status)) return false;
-    if(S.selectedTags.length && !S.selectedTags.some(tg=>(t.tags||[]).includes(tg))) return false;
-    if(search && !t.name.toLowerCase().includes(search)) return false;
+  // Milestone-associated tasks are always visible when milestone filter is active
+  const msTaskIds=_msFilter?new Set((MILESTONES.find(m=>m.id===_msFilter)?.taskIds)||[]):new Set();
+  let tasks=TASKS.filter(t=>{
+    const isMsTask=msTaskIds.has(t.id);
+    if(_msFilter && !isMsTask) return false; // must be in milestone
+    if(!isMsTask){ // only apply other filters to non-milestone tasks
+      if(!S.statusFilter.includes(t.status)) return false;
+      if(S.selectedTags.length && !S.selectedTags.some(tg=>(t.tags||[]).includes(tg))) return false;
+      if(search && !t.name.toLowerCase().includes(search)) return false;
+    }
     return true;
   });
+  const sb=S._sortBy||'chrono';
+  if(sb==='name') tasks=[...tasks].sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sb==='tags') tasks=[...tasks].sort((a,b)=>((a.tags||[])[0]||'').localeCompare((b.tags||[])[0]||''));
+  // 'chrono' = natural TASKS array order (already sorted by start)
+  return tasks;
 }
 
 function buildGRows(tasks){
   const rows=[];
   if(S.viewBy==='project'){
-    // Filter by selected projects if any; match tasks whose tags overlap project tags
     let filtered=tasks;
     if(S.vbFilter.length){
       const selProjIds=new Set(S.vbFilter);
-      filtered=tasks.filter(t=>selProjIds.has(t.projId)||
-        // fallback: match via project tags for tasks without projId
-        PROJECTS.filter(p=>selProjIds.has(p.id)).some(p=>(p.tags||[]).some(tg=>(t.tags||[]).includes(tg))));
+      filtered=tasks.filter(t=>{
+        if(selProjIds.has(t.projId)) return true;
+        return false; // tasks without projId don't belong to any project
+      });
     }
     filtered.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
   } else if(S.viewBy==='resource'){
@@ -1635,6 +1653,13 @@ function renderGantt(){
   // Compute exact per-day schedules before rendering
   computeAllSchedules();
 
+  // Populate project selector
+  const _pSel=document.getElementById('proj-selector');
+  if(_pSel){
+    const _cur=_pSel.value;
+    _pSel.innerHTML='<option value="">All projects</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    _pSel.value=_cur;
+  }
   const tasks=visTasks();
   const rows=buildGRows(tasks);
 
@@ -1658,6 +1683,9 @@ function renderGantt(){
   if(cc>0) msp.push({m:cm,s:cs,n:cc});
 
   // Update deadline banner
+  // Use selected project for deadline display
+  if(S._activeProjId){ const _ap=PROJECTS.find(p=>p.id===S._activeProjId); if(_ap) PROJ=_ap; }
+  else if(PROJECTS.length) PROJ=PROJECTS[0];
   const pdl=PROJ.deadline?dateToIdx(PROJ.deadline):null;
   const allEnds=TASKS.map(t=>tEnd(t)).filter(Boolean);
   const lastEnd=allEnds.length?Math.max(...allEnds):null;
@@ -1681,7 +1709,9 @@ function renderGantt(){
 
   let H=`<div><table class="gt" style="width:100%;table-layout:fixed"><thead>
   <tr>
-    <th class="stn th-m" style="left:0;z-index:12">Task</th>
+    <th class="stn th-m" style="left:0;z-index:12;cursor:pointer;user-select:none" onclick="window._cycleSortGantt()" oncontextmenu="event.preventDefault();window._sortMenuGantt(event)" title="Left-click: cycle sort · Right-click: sort menu">
+      Task <span id="g-sort-icon" style="font-size:8px;color:var(--fg3);margin-left:2px">${S._sortBy==='name'?'A-Z':S._sortBy==='tags'?'#':''}</span>
+    </th>
     <th class="sto th-m" style="left:240px;z-index:12">Own</th>
     <th class="sth th-m" style="left:276px;z-index:12">Hrs</th>
     ${msp.map(ms=>`<th colspan="${ms.n}" class="th-m" style="width:${ms.n*COL_W}px">${MN[ms.m].toUpperCase()}</th>`).join('')}
@@ -1928,19 +1958,24 @@ function renderGantt(){
 // Non-working:  normal → enabled  → normal
 window.dayHdrClick=(e,idx)=>{
   e.preventDefault();e.stopPropagation();
+  // Only PM can toggle global days
+  if(!isPM()){
+    // Team leader / resource: redirect to their own resource day click
+    if(S_USER?.resId){
+      window.dayResClick(e,idx,S_USER.resId);
+    }
+    return;
+  }
   const key=String(idx);
   const d=gDate(idx);
   const baseNW=isWE(d)||isHol(d);
   if(baseNW){
-    // Was non-working by default
     if(ENB_DAYS.has(key)){ ENB_DAYS.delete(key); notify(`${sd(idx)} — back to non-working`,'warn'); }
     else { ENB_DAYS.add(key); notify(`${sd(idx)} — enabled globally`,'success'); }
   } else {
-    // Was working by default
     if(DIS_DAYS.has(key)){ DIS_DAYS.delete(key); notify(`${sd(idx)} — back to working`,'success'); }
     else {
       DIS_DAYS.add(key); notify(`${sd(idx)} — disabled globally`,'warn');
-      // Auto-adjust: push tasks whose start lands on this day
       adjustTasksForDay(idx, null);
     }
   }
@@ -1951,19 +1986,21 @@ window.dayHdrCtx=(e,idx)=>{ window.dayHdrClick(e,idx); };
 // ── RESOURCE day click (group header row) ────────────────────
 window.dayResClick=(e,idx,resId)=>{
   e.preventDefault();e.stopPropagation();
+  // Permission: PM=any resource, Team Leader=own team, Resource=self only
+  if(!isPM()){
+    const allowed=isTeamLeader()?new Set([S_USER.resId,...getMyTeamResources()]):new Set([S_USER?.resId]);
+    if(!allowed.has(resId)){notify('No permission to change days for this resource','warn');return;}
+  }
   const key=String(idx);
   if(!RES_DAYS.has(resId)) RES_DAYS.set(resId,{enabled:new Set(),disabled:new Set()});
   const rd=RES_DAYS.get(resId);
-  const baseNW=isNW(idx); // global state, ignoring resource override
-  // Actually check what the resource-level state currently is
+  const baseNW=isNW(idx);
   const resEnabled=rd.enabled.has(key);
   const resDisabled=rd.disabled.has(key);
   if(baseNW){
-    // Default non-working
     if(resEnabled){ rd.enabled.delete(key); notify(`${sd(idx)} — back to non-working for ${getRes(resId)?.name}`,'warn'); }
     else { rd.enabled.add(key); rd.disabled.delete(key); notify(`${sd(idx)} — enabled for ${getRes(resId)?.name}`,'success'); }
   } else {
-    // Default working
     if(resDisabled){ rd.disabled.delete(key); notify(`${sd(idx)} — back to working for ${getRes(resId)?.name}`,'success'); }
     else {
       rd.disabled.add(key); rd.enabled.delete(key); notify(`${sd(idx)} — disabled for ${getRes(resId)?.name}`,'warn');
@@ -2700,6 +2737,8 @@ function loadDepFields(t){
 function openAddTask(){
   S.editId=null;
   document.getElementById('mt-h').textContent='New Task';
+  // Clear milestone display for new task
+  const _mtMs=document.getElementById('mt-ms-list'); if(_mtMs) _mtMs.innerHTML='<span style="font-size:10px;color:var(--fg3)">Save task first to associate milestones</span>';
   const _ps=document.getElementById('mt-proj');
   if(_ps){
     _ps.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
@@ -2724,6 +2763,8 @@ function openAddTask(){
   setTM('total');
   _taskTeams=[];
   renderTeamResList();
+  // Show associated milestones with add button
+  window._updateTaskMilestones();
   OM('m-task');
 }
 function openEditTask(id){
@@ -2732,7 +2773,7 @@ function openEditTask(id){
   S.editId=id;
   document.getElementById('mt-h').textContent='Edit Task';
   const _ps2=document.getElementById('mt-proj');
-  if(_ps2) _ps2.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if(_ps2){ _ps2.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _ps2.value=t.projId||''; }
   const _isCont=!t.timeMode||t.timeMode==='total';
   setTaskType(_isCont?'continuous':'daily',document.getElementById(_isCont?'tt-cont':'tt-daily'));
   if(!_isCont&&t.start){ const _sd=gDate(t.start),_ed=gDate(t.start+(t.dur||1)-1);const _fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const _sse=document.getElementById('mt-s-date');const _ese=document.getElementById('mt-e-date');if(_sse)_sse.value=_fmt(_sd);if(_ese)_ese.value=_fmt(_ed); }
@@ -2768,6 +2809,7 @@ function openEditTask(id){
     _taskTeams=Object.entries(teamMap).map(([teamId,entries])=>({teamId,entries}));
   }
   renderTeamResList();
+  _renderTaskMilestones(id);
   OM('m-task');
 }
 window.saveTask=()=>{
@@ -3210,9 +3252,11 @@ window.saveProject=()=>{
   if(_editProjId){
     const p=PROJECTS.find(x=>x.id===_editProjId);
     Object.assign(p,data);
+    addLog({type:'project',task:name,from:'',to:'updated'});
     notify('Project updated','success');
   } else {
     PROJECTS.push({id:'p'+Date.now(),...data});
+    addLog({type:'project',task:name,from:'',to:'created'});
     notify(`"${name}" created`,'success');
   }
   CM('m-project');
@@ -5155,20 +5199,39 @@ function _populateMsFilters(){
   const rs=document.getElementById('ms-task-res'); if(rs) rs.innerHTML='<option value="">All resources</option>'+RESOURCES.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
 }
 window._renderMsTaskListFiltered=()=>{
+  // Save currently checked before re-render
+  const checked=new Set([...document.querySelectorAll('#ms-task-list input[type=checkbox]:checked')].map(cb=>cb.value));
+  window._msCurSelected=[...new Set([...(window._msCurSelected||[]),...checked])];
+  const sel=new Set(window._msCurSelected||[]);
+
   const q=(document.getElementById('ms-task-search')?.value||'').toLowerCase();
   const tf=document.getElementById('ms-task-team')?.value||'';
   const rf=document.getElementById('ms-task-res')?.value||'';
-  const checked=new Set([...document.querySelectorAll('#ms-task-list input[type=checkbox]:checked')].map(cb=>cb.value));
-  window._msCurSelected=[...(window._msCurSelected||[]),...checked];
-  const sel=new Set(window._msCurSelected||[]);
-  const list=TASKS.filter(t=>{
-    if(q&&!t.name.toLowerCase().includes(q)) return false;
-    if(tf&&t.teamId!==tf&&!(t.teamIds||[]).includes(tf)) return false;
-    if(rf&&t.resId!==rf) return false;
-    return true;
-  });
+
+  // Selected tasks always shown first; unselected filtered by search
+  const selected=TASKS.filter(t=>sel.has(t.id));
+  const unselected=TASKS.filter(t=>!sel.has(t.id)&&(
+    (!q||t.name.toLowerCase().includes(q))&&
+    (!tf||(t.teamId===tf||(t.teamIds||[]).includes(tf)))&&
+    (!rf||t.resId===rf)
+  ));
+
+  const list=[...selected,...unselected];
   const el=document.getElementById('ms-task-list'); if(!el) return;
-  el.innerHTML=list.map(t=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:11px;color:${sel.has(t.id)?'var(--fg0)':'var(--fg2)'}"><input type="checkbox" ${sel.has(t.id)?'checked':''} value="${t.id}" style="accent-color:var(--acc2)"><span style="width:7px;height:7px;border-radius:50%;background:${SCOLS[t.status]};flex-shrink:0"></span>${t.name}${t.tags?.length?` <span style="font-size:8px;color:var(--fg3)">${t.tags.join(', ')}</span>`:''}</label>`).join('');
+
+  const mkRow=t=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:11px;${sel.has(t.id)?'background:rgba(123,97,255,.1);':''}color:${sel.has(t.id)?'var(--fg0)':'var(--fg2)'}">
+    <input type="checkbox" ${sel.has(t.id)?'checked':''} value="${t.id}" style="accent-color:var(--acc2)" onchange="(window._msCurSelected=window._msCurSelected||[],this.checked?(!window._msCurSelected.includes('${t.id}')&&window._msCurSelected.push('${t.id}')):window._msCurSelected=window._msCurSelected.filter(x=>x!=='${t.id}'),_renderMsTaskListFiltered())">
+    <span style="width:7px;height:7px;border-radius:50%;background:${SCOLS[t.status]};flex-shrink:0"></span>
+    ${t.name}${t.tags?.length?` <span style="font-size:8px;color:var(--fg3)">${t.tags.join(', ')}</span>`:''}
+  </label>`;
+
+  if(selected.length&&unselected.length){
+    el.innerHTML=selected.map(mkRow).join('')+
+      `<div style="height:1px;background:var(--bd);margin:4px 0"></div>`+
+      unselected.map(mkRow).join('');
+  } else {
+    el.innerHTML=list.map(mkRow).join('')||'<div style="font-size:11px;color:var(--fg3);padding:6px">No tasks found</div>';
+  }
 };
 
 // Update colour picker: disable colours already used on the selected date
@@ -5217,6 +5280,8 @@ window.openAddMilestone=()=>{
   document.getElementById('ms-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('ms-color').value='#7b61ff';
   document.getElementById('ms-del-btn').style.display='none';
+  const _msProjSel=document.getElementById('ms-proj');
+  if(_msProjSel){ _msProjSel.innerHTML='<option value="">— all projects —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _msProjSel.value=''; }
   selMsCol(null,'#7b61ff');
   setTimeout(_updateMsColorAvailability,0);
   window._msCurSelected=[];
@@ -5236,6 +5301,8 @@ window.openEditMilestone=(msId)=>{
   document.getElementById('ms-color').value=ms.color||'#7b61ff';
   document.getElementById('ms-del-btn').style.display='';
   selMsCol(null,ms.color||'#7b61ff');
+  const _msProjSel2=document.getElementById('ms-proj');
+  if(_msProjSel2){ _msProjSel2.innerHTML='<option value="">— all projects —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _msProjSel2.value=ms.projId||''; }
   setTimeout(_updateMsColorAvailability,0);
   window._msCurSelected=[...(ms.taskIds||[])];
   _populateMsFilters();
@@ -5430,6 +5497,13 @@ window.renderGantt=function(){
 
 function renderGanttWeek(){
   computeAllSchedules();
+  // Populate project selector
+  const _pSel=document.getElementById('proj-selector');
+  if(_pSel){
+    const _cur=_pSel.value;
+    _pSel.innerHTML='<option value="">All projects</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    _pSel.value=_cur;
+  }
   const tasks=visTasks();
   const rows=buildGRows(tasks);
 
@@ -5721,11 +5795,13 @@ function renderLogsPage(){
   const el=document.getElementById('logs-page-content');
   if(!el) return;
 
-  // Populate user filter
+  // Populate user filter (preserve current selection)
   const userSel=document.getElementById('log-filter-user');
   if(userSel){
+    const _prevUser=userSel.value;
     const users=new Set(GLOG.map(e=>e.user||'—').filter(Boolean));
     userSel.innerHTML='<option value="">All users</option>'+[...users].map(u=>`<option value="${u}">${u}</option>`).join('');
+    if(_prevUser) userSel.value=_prevUser;
   }
 
   const typeF=document.getElementById('log-filter-type')?.value||'';
@@ -5880,6 +5956,78 @@ window._showHoldDialog=(taskId)=>{
     }
   });
 })();
+
+// Prevent modal from closing when mouse drag ends outside
+(()=>{
+  let _mbgMouseDownTarget=null;
+  document.addEventListener('mousedown',e=>{ _mbgMouseDownTarget=e.target; });
+  document.addEventListener('click',e=>{
+    const mbg=e.target.closest?.('.mbg');
+    if(mbg&&e.target===mbg&&_mbgMouseDownTarget===mbg){
+      // Both mousedown and click on backdrop — close
+      const modal=mbg.querySelector('.modal');
+      if(modal){
+        const id=mbg.id;
+        if(id==='m-task'||id==='m-milestone'||id==='m-project'||id==='m-proj'||id==='m-log'||id==='m-split'||id==='m-flog'){
+          CM(id);
+        }
+      }
+    }
+  });
+})();
+
+window._cycleSortGantt=()=>{
+  const order=['chrono','name','tags'];
+  const cur=S._sortBy||'chrono';
+  S._sortBy=order[(order.indexOf(cur)+1)%order.length];
+  renderGantt();
+};
+window._sortMenuGantt=(e)=>{
+  const old=document.getElementById('g-sort-menu'); if(old) old.remove();
+  const menu=document.createElement('div');
+  menu.id='g-sort-menu';
+  menu.style.cssText='position:fixed;z-index:500;background:var(--bg2);border:1px solid var(--bd2);border-radius:8px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.5);min-width:140px';
+  menu.style.left=e.clientX+'px'; menu.style.top=e.clientY+'px';
+  const opts=[['chrono','📅 Chronological'],['name','🔤 Name (A–Z)'],['tags','# Tags (A–Z)']];
+  menu.innerHTML=opts.map(([v,l])=>`<div onclick="S._sortBy='${v}';renderGantt();this.closest('#g-sort-menu').remove()" style="padding:7px 12px;font-size:11px;cursor:pointer;border-radius:5px;background:${(S._sortBy||'chrono')===v?'var(--bg3)':'none'};color:var(--fg0)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${(S._sortBy||'chrono')===v?'var(--bg3)':'none'}'">
+    ${l}${(S._sortBy||'chrono')===v?' ✓':''}
+  </div>`).join('');
+  document.body.appendChild(menu);
+  setTimeout(()=>{ const cl=()=>{menu.remove();document.removeEventListener('click',cl);}; document.addEventListener('click',cl); },50);
+};
+
+window._onProjSelectorChange=(projId)=>{
+  S._activeProjId=projId||null;
+  if(projId){
+    S.viewBy='project'; S.vbFilter=[projId];
+    document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));
+    const btn=document.getElementById('vb-pr'); if(btn) btn.classList.add('on');
+  } else {
+    S.vbFilter=[];
+  }
+  renderGantt();
+};
+
+function _renderTaskMilestones(taskId){
+  const wrap=document.getElementById('mt-ms-list');
+  if(!wrap) return;
+  if(!taskId){
+    wrap.innerHTML='<span style="font-size:10px;color:var(--fg3)">Save task first to associate milestones</span>';
+    return;
+  }
+  const assoc=MILESTONES.filter(m=>(m.taskIds||[]).includes(taskId));
+  const unassoc=MILESTONES.filter(m=>!(m.taskIds||[]).includes(taskId));
+  let html='';
+  if(assoc.length){
+    html+=assoc.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${m.color||'var(--acc2)'}22;border:1px solid ${m.color||'var(--acc2)'};border-radius:5px;padding:2px 8px;font-size:10px;color:${m.color||'var(--acc2)'}">◆ ${m.name}<span onclick="(function(){var ms=MILESTONES.find(function(x){return x.id==='${m.id}'});if(ms)ms.taskIds=(ms.taskIds||[]).filter(function(x){return x!=='${taskId}'});persistState(['milestones']);_renderTaskMilestones('${taskId}');})()" style="cursor:pointer;margin-left:3px;opacity:.6">✕</span></span>`).join('');
+  }
+  if(unassoc.length){
+    html+=`<select onchange="(function(){var ms=MILESTONES.find(function(x){return x.id===this.value}.bind(this));if(ms){if(!ms.taskIds)ms.taskIds=[];if(!ms.taskIds.includes('${taskId}'))ms.taskIds.push('${taskId}');persistState(['milestones']);_renderTaskMilestones('${taskId}');}this.value='';}.bind(this))()" style="font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid var(--bd);background:var(--bg3);color:var(--fg2);cursor:pointer;margin-left:4px"><option value="">+ Add milestone</option>${unassoc.map(m=>`<option value="${m.id}">◆ ${m.name}</option>`).join('')}</select>`;
+  }
+  if(!assoc.length&&!unassoc.length) html='<span style="font-size:10px;color:var(--fg3)">No milestones defined yet</span>';
+  wrap.innerHTML=html;
+}
+window._updateTaskMilestones=()=>_renderTaskMilestones(S.editId||null);
 // ============================================================
 // INIT
 // ============================================================
