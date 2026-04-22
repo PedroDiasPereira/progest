@@ -2911,16 +2911,62 @@ window.saveTask=()=>{
   };
   if(S.editId){
     const t=TASKS.find(x=>x.id===S.editId);
-    // Diff changes before saving
+    // Detailed diff of every changed field
     const diffs=[];
+    const _dn=(v)=>v||'none';
+    const _rn=(id)=>getRes(id)?.name||id||'none';
+    const _pn=(id)=>PROJECTS.find(p=>p.id===id)?.name||id||'none';
+    const _tn=(id)=>TEAMS.find(t2=>t2.id===id)?.name||id||'none';
+    // Name
     if(t.name!==data.name) diffs.push(`name: "${t.name}" → "${data.name}"`);
-    if(t.projId!==data.projId){ const op=PROJECTS.find(p=>p.id===t.projId)?.name||t.projId||'none'; const np=PROJECTS.find(p=>p.id===data.projId)?.name||data.projId||'none'; diffs.push(`project: ${op} → ${np}`); }
-    if(t.resId!==data.resId){ diffs.push(`resource: ${getRes(t.resId)?.name||t.resId||'none'} → ${getRes(data.resId)?.name||data.resId||'none'}`); }
-    if(t.deadline!==data.deadline) diffs.push(`deadline: ${t.deadline||'none'} → ${data.deadline||'none'}`);
-    if(t.hours!==data.hours) diffs.push(`hours: ${t.hours}h → ${data.hours}h`);
-    if(t.notes!==data.notes&&data.notes) diffs.push(`notes: "${data.notes.slice(0,60)}${data.notes.length>60?'…':''}"`);
-    if(t.status!==data.status) diffs.push(`status: ${SLABELS[t.status]||t.status} → ${SLABELS[data.status]||data.status}`);
-    if(JSON.stringify(t.tags)!==JSON.stringify(data.tags)) diffs.push(`tags: ${(data.tags||[]).join(', ')||'none'}`);
+    // Project
+    if((t.projId||'')!==(data.projId||'')) diffs.push(`project: ${_pn(t.projId)} → ${_pn(data.projId)}`);
+    // Primary resource
+    if((t.resId||'')!==(data.resId||'')) diffs.push(`resource: ${_rn(t.resId)} → ${_rn(data.resId)}`);
+    // Co-resources
+    const _oldCo=(t.coResIds||[]).slice().sort().join(',');
+    const _newCo=(data.coResIds||[]).slice().sort().join(',');
+    if(_oldCo!==_newCo){
+      const _addedR=(data.coResIds||[]).filter(id=>!(t.coResIds||[]).includes(id));
+      const _removedR=(t.coResIds||[]).filter(id=>!(data.coResIds||[]).includes(id));
+      if(_addedR.length) diffs.push(`co-resource added: ${_addedR.map(_rn).join(', ')}`);
+      if(_removedR.length) diffs.push(`co-resource removed: ${_removedR.map(_rn).join(', ')}`);
+    }
+    // Tags
+    const _oldTags=(t.tags||[]).slice().sort().join(',');
+    const _newTags=(data.tags||[]).slice().sort().join(',');
+    if(_oldTags!==_newTags){
+      const _addedTg=(data.tags||[]).filter(tg=>!(t.tags||[]).includes(tg));
+      const _removedTg=(t.tags||[]).filter(tg=>!(data.tags||[]).includes(tg));
+      if(_addedTg.length) diffs.push(`tag added: ${_addedTg.join(', ')}`);
+      if(_removedTg.length) diffs.push(`tag removed: ${_removedTg.join(', ')}`);
+    }
+    // Hours
+    if((t.hours||0)!==(data.hours||0)) diffs.push(`hours: ${t.hours||0}h → ${data.hours||0}h`);
+    // Time mode
+    if((t.timeMode||'total')!==(data.timeMode||'total')) diffs.push(`type: ${t.timeMode||'total'} → ${data.timeMode||'total'}`);
+    if(data.timeMode==='daily'&&(t.hpd||0)!==(data.hpd||0)) diffs.push(`h/day: ${t.hpd||0}h → ${data.hpd||0}h`);
+    // Start date
+    if((t.start||0)!==(data.start||0)&&data.start) diffs.push(`start: ${t.start?sd(t.start):'none'} → ${sd(data.start)}`);
+    // Deadline
+    if((t.deadline||'')!==(data.deadline||'')) diffs.push(`deadline: ${_dn(t.deadline)} → ${_dn(data.deadline)}`);
+    // Progress
+    if((t.prog||0)!==(data.prog||0)) diffs.push(`progress: ${t.prog||0}% → ${data.prog||0}%`);
+    // Status
+    if((t.status||'todo')!==(data.status||'todo')) diffs.push(`status: ${SLABELS[t.status]||t.status} → ${SLABELS[data.status]||data.status}`);
+    // Notes (show new content if changed)
+    const _oldN=(t.notes||'').trim(); const _newN=(data.notes||'').trim();
+    if(_oldN!==_newN){
+      if(!_newN) diffs.push('notes: cleared');
+      else if(!_oldN) diffs.push(`notes added: "${_newN.slice(0,80)}${_newN.length>80?'…':''}"`);
+      else diffs.push(`notes changed: "${_newN.slice(0,60)}${_newN.length>60?'…':''}"`);
+    }
+    // Dependency
+    if((t.depId||'')!==(data.depId||'')) diffs.push(`depends on: ${t.depId?TASKS.find(x=>x.id===t.depId)?.name||t.depId:'none'} → ${data.depId?TASKS.find(x=>x.id===data.depId)?.name||data.depId:'none'}`);
+    // Hold blocker
+    if((t.holdBlocker||'')!==(data.holdBlocker||'')) diffs.push(`hold reason: "${_dn(data.holdBlocker)}"`);
+    // Team
+    if((t.teamId||'')!==(data.teamId||'')) diffs.push(`team: ${_tn(t.teamId)} → ${_tn(data.teamId)}`);
     Object.assign(t,data);
     addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
     notify('Task saved','success');
@@ -4519,6 +4565,12 @@ function startSSE(){
         if(data.resources) RESOURCES=_mergeArr(RESOURCES,_toArr(data.resources),'resources');
         if(data.teams)     TEAMS    =_mergeArr(TEAMS,    _toArr(data.teams),'teams');
         if(data.projects)  PROJECTS =_mergeArr(PROJECTS, _toArr(data.projects),'projects');
+        if(data.logs&&Array.isArray(data.logs)){
+          const existing=new Set(GLOG.map(e=>e.ts+'|'+e.user+'|'+e.task));
+          const newE=data.logs.filter(e=>!existing.has(e.ts+'|'+e.user+'|'+e.task));
+          if(newE.length){ GLOG.push(...newE); GLOG.sort((a,b)=>b.ts-a.ts); while(GLOG.length>500) GLOG.pop(); }
+        }
+        if(data.milestones) MILESTONES=_toArr(data.milestones)||[];
         _applyMeta(data.meta);
       } else if(path==='/tasks'){
         TASKS=_mergeArr(TASKS,_toArr(data),'tasks');
@@ -4530,6 +4582,17 @@ function startSSE(){
         PROJECTS=_mergeArr(PROJECTS,_toArr(data),'projects');
       } else if(path==='/meta'){
         _applyMeta(data);
+      } else if(path==='/logs'){
+        if(Array.isArray(data)){
+          // Merge incoming logs: combine with local, dedupe by ts+user, sort newest first
+          const existing=new Set(GLOG.map(e=>e.ts+'|'+e.user+'|'+e.task));
+          const newEntries=data.filter(e=>!existing.has(e.ts+'|'+e.user+'|'+e.task));
+          if(newEntries.length){
+            GLOG.push(...newEntries);
+            GLOG.sort((a,b)=>b.ts-a.ts);
+            while(GLOG.length>500) GLOG.pop();
+          }
+        }
       }
 
       // Run migration on received data (fixes stale teamIds/resHours)
@@ -4540,6 +4603,8 @@ function startSSE(){
       else if(p==='projects')  renderProjects();
       else if(p==='resources') renderRes();
       else if(p==='teams')     renderTeams();
+      else if(p==='logs')      renderLogsPage();
+      renderLog(); // always update the mini log strip
       setSyncStatus('↓ atualizado');
     }catch(ex){ console.warn('SSE parse error',ex); }
   });
@@ -5949,7 +6014,7 @@ function renderLogsPage(){
         <th style="width:75px">Time</th>
         <th style="width:85px">User</th>
         <th style="width:65px">Type</th>
-        <th style="min-width:160px">Task</th>
+        <th style="min-width:160px">Task / Entity</th>
         <th style="min-width:300px">Details</th>
       </tr></thead>
       <tbody>
