@@ -2281,7 +2281,7 @@ function adjustTasksForDay(dayIdx, resId){
       let newEnd = te + 1;
       while(isNW(newEnd, t.id, t.resId) && newEnd < te + 30) newEnd++;
       const newDur = newEnd - t.start + 1;
-      addLog({type:'resize', task:t.name, from:`ends ${sd(te)}`, to:`extended to ${sd(newEnd)}`});
+      addLog({type:'resize', task:t.name, from:`ends ${sd(te)}`, to:`${sd(newEnd)} (resize)`});
       t.dur = newDur;
     }
     affected++;
@@ -2415,7 +2415,7 @@ function finishMove(upX){
     t.dur=Math.max(1,end-newStart+1);
   }
 
-  addLog({type:'move',task:t.name,from:old?sd(old):'—',to:sd(newStart)});
+  addLog({type:'move',task:t.name,from:old?sd(old):'—',to:`${sd(newStart)} (moved ${newStart>old?'+':'-'}${Math.abs(newStart-(old||newStart))}d)`});
   notify(`"${t.name}" → ${sd(newStart)}`,'success');
 
   // ── CASCADE DEPENDENTS ───────────────────────────────────────
@@ -2582,7 +2582,7 @@ window.ctxStat=(s)=>{
     notify(`"${t.name}" → Ready for Milestone`,'success');
   }
   t.status=s;
-  addLog({type:'status',task:t.name,from:'',to:SLABELS[s]});
+  const _prevStatus=t.status; addLog({type:'status',task:t.name,from:SLABELS[_prevStatus]||_prevStatus,to:SLABELS[s]||s});
   notify(`"${t.name}" → ${SLABELS[s]}`,'success');
   renderGantt();renderDash();
 };
@@ -2911,12 +2911,24 @@ window.saveTask=()=>{
   };
   if(S.editId){
     const t=TASKS.find(x=>x.id===S.editId);
+    // Diff changes before saving
+    const diffs=[];
+    if(t.name!==data.name) diffs.push(`name: "${t.name}" → "${data.name}"`);
+    if(t.projId!==data.projId){ const op=PROJECTS.find(p=>p.id===t.projId)?.name||t.projId||'none'; const np=PROJECTS.find(p=>p.id===data.projId)?.name||data.projId||'none'; diffs.push(`project: ${op} → ${np}`); }
+    if(t.resId!==data.resId){ diffs.push(`resource: ${getRes(t.resId)?.name||t.resId||'none'} → ${getRes(data.resId)?.name||data.resId||'none'}`); }
+    if(t.deadline!==data.deadline) diffs.push(`deadline: ${t.deadline||'none'} → ${data.deadline||'none'}`);
+    if(t.hours!==data.hours) diffs.push(`hours: ${t.hours}h → ${data.hours}h`);
+    if(t.notes!==data.notes&&data.notes) diffs.push(`notes: "${data.notes.slice(0,60)}${data.notes.length>60?'…':''}"`);
+    if(t.status!==data.status) diffs.push(`status: ${SLABELS[t.status]||t.status} → ${SLABELS[data.status]||data.status}`);
+    if(JSON.stringify(t.tags)!==JSON.stringify(data.tags)) diffs.push(`tags: ${(data.tags||[]).join(', ')||'none'}`);
     Object.assign(t,data);
-    addLog({type:'edit',task:name,from:'',to:'updated'});
+    addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
     notify('Task saved','success');
   } else {
-    TASKS.push({id:'t'+Date.now(),timeLogs:[],subtasks:[],segments:null,...data});
-    addLog({type:'create',task:name,from:'',to:'created'});
+    const newId='t'+Date.now();
+    const res=getRes(data.resId);
+    TASKS.push({id:newId,timeLogs:[],subtasks:[],segments:null,...data});
+    addLog({type:'create',task:name,from:'',to:`created${data.projId?' in '+PROJECTS.find(p=>p.id===data.projId)?.name:''}${res?' for '+res.name:''}${data.hours?' · '+data.hours+'h':''}`});
     notify(`"${name}" created`,'success');
   }
   CM('m-task');
@@ -2927,7 +2939,7 @@ window.saveTask=()=>{
 window.delEditTask=()=>{
   if(!S.editId) return;
   const _dt=TASKS.find(x=>x.id===S.editId);
-  addLog({type:'delete',task:_dt?.name||S.editId,from:'',to:'deleted'});
+  addLog({type:'delete',task:_dt?.name||S.editId,from:'',to:`task deleted (was ${SLABELS[_dt?.status]||_dt?.status||'unknown'}, ${_dt?.hours||0}h, ${_dt?.resId?getRes(_dt.resId)?.name||_dt.resId:'unassigned'})`});
   TASKS=TASKS.filter(t=>t.id!==S.editId);
   CM('m-task');notify('Deleted','warn');
   renderGantt();renderDash();
@@ -2958,7 +2970,7 @@ window.saveLog=()=>{
   t.timeLogs=t.timeLogs||[];
   t.timeLogs.push({date:document.getElementById('ml-date').value,hours:h,notes:document.getElementById('ml-notes').value,user:'Pedro Pereira'});
   if(t.status==='todo') t.status='doing';
-  addLog({type:'timelog',task:t.name,from:'',to:`${h}h logged`});
+  addLog({type:'timelog',task:t.name,from:'',to:`${_fmtHours(h)} logged on ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}`});
   notify(`${h}h logged on "${t.name}"`,'success');
   CM('m-log');renderGantt();renderDash();
   persistState(['tasks']);
@@ -3003,7 +3015,7 @@ window.confirmSplit=()=>{
   const ad=Math.ceil(ah/HPD),bd=Math.ceil(bh/HPD),s=t.start||1;
   t.segments=[{start:s,dur:ad,hours:ah},{start:s+ad+gap,dur:bd,hours:bh}];
   t.dur=ad+gap+bd;
-  addLog({type:'split',task:t.name,from:`${tot}h`,to:`A:${ah}h+B:${bh}h gap:${gap}d`});
+  addLog({type:'split',task:t.name,from:`${tot}h total`,to:`Part A: ${ah}h · Part B: ${bh}h · gap: ${gap}d`});
   notify('Task split','success');
   CM('m-split');renderGantt();
 };
@@ -3314,8 +3326,13 @@ window.saveProject=()=>{
   };
   if(_editProjId){
     const p=PROJECTS.find(x=>x.id===_editProjId);
+    const _pDiffs=[];
+    if(p.name!==data.name) _pDiffs.push(`name: "${p.name}" → "${data.name}"`);
+    if(p.deadline!==data.deadline) _pDiffs.push(`deadline: ${p.deadline||'none'} → ${data.deadline||'none'}`);
+    if(p.status!==data.status) _pDiffs.push(`status: ${p.status} → ${data.status}`);
+    if(p.desc!==data.desc&&data.desc) _pDiffs.push(`desc updated`);
     Object.assign(p,data);
-    addLog({type:'project',task:name,from:'',to:'updated'});
+    addLog({type:'project',task:name,from:'',to:_pDiffs.length?_pDiffs.join(' · '):'saved'});
     notify('Project updated','success');
   } else {
     PROJECTS.push({id:'p'+Date.now(),...data});
@@ -4162,7 +4179,7 @@ window.cycleStatus=(taskId)=>{
   const hasMsLink=taskHasMilestone(taskId);
   const next=hasMsLink?'ready':'done';
   t.status=next; t.prog=100;
-  addLog({type:'status',task:t.name,from:'',to:SLABELS[next]});
+  addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[next]||next});
   notify(`"${t.name}" → Done ✓`,'success');
   persistState(['tasks']); renderGantt(); renderDash();
 };
@@ -4195,7 +4212,7 @@ window.setTaskStatus=(taskId,status)=>{
   }
   t.status=status;
   if(status==='doing'&&!t.startedAt){ t.startedAt=GANTT_TODAY; if(!t.start) t.start=GANTT_TODAY; }
-  addLog({type:'status',task:t.name,from:'',to:SLABELS[status]});
+  addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[status]||status});
   notify(`"${t.name}" → ${SLABELS[status]}`,'success');
   persistState(['tasks']); renderGantt(); renderDash();
 };
@@ -4540,7 +4557,7 @@ function uTask(id,field,value){
 function delTask(id){
   if(!confirm('Eliminar esta tarefa?')) return;
   const _dt2=TASKS.find(x=>x.id===id);
-  addLog({type:'delete',task:_dt2?.name||id,from:'',to:'deleted'});
+  addLog({type:'delete',task:_dt2?.name||id,from:'',to:`deleted from table view (was ${SLABELS[_dt2?.status]||_dt2?.status||'?'})`});
   TASKS=TASKS.filter(t=>t.id!==id);
   persistState(['tasks']); renderDash(); renderGantt();
 }
@@ -4674,6 +4691,7 @@ window.tpStart=(taskId)=>{
   t.start=GANTT_TODAY;
   _tpDayOffset=0;
 
+  addLog({type:'time',task:t.name,from:'',to:'▶ timer started'});
   persistState(['tasks']); _reRenderCurrent(); updateTimerToggle(); if(typeof updateMobBanner!=="undefined") updateMobBanner();
   _startTimerTick();
   renderTimerPanel();
@@ -4689,7 +4707,7 @@ window.tpPause=(taskId)=>{
   _saveTimerState();
   clearInterval(_timerInterval); _timerInterval=null;
   const t=TASKS.find(x=>x.id===taskId);
-  if(t){ t.status='paused'; persistState(['tasks']); _reRenderCurrent(); }
+  if(t){ t.status='paused'; const sessH=_sessionElapsedMs()/3600000; addLog({type:'time',task:t.name,from:'',to:`⏸ paused — session: ${_fmtHours(sessH)}`}); persistState(['tasks']); _reRenderCurrent(); }
   renderTimerPanel();
 };
 
@@ -4701,8 +4719,9 @@ window.tpDone=(taskId)=>{
     _timerState={}; _saveTimerState();
     clearInterval(_timerInterval); _timerInterval=null;
   }
+  const _sessH=_commitSession?0:0; const _loggedH=_totalLoggedH(t);
   t.status=taskHasMilestone(taskId)?'ready':'done'; t.prog=100;
-  addLog({type:'status',task:t.name,from:'',to:taskHasMilestone(taskId)?'Ready for Milestone':'Done'});
+  addLog({type:'status',task:t.name,from:'',to:`${taskHasMilestone(taskId)?'◆ Ready for Milestone':'✓ Done'} — total logged: ${_fmtHours(_loggedH)}`});
   persistState(['tasks']); _reRenderCurrent();
   notify(`"${t.name}" → Done ✓`,'success');
   renderTimerPanel();
@@ -5434,10 +5453,17 @@ window.saveMilestone=()=>{
   if(_msEditId){
     const ms=MILESTONES.find(m=>m.id===_msEditId);
     if(ms){Object.assign(ms,{name,dayIdx,color,taskIds});}
-    addLog({type:'milestone',task:name,from:'',to:'edited'});
+    const _old=MILESTONES.find(m=>m.id===_msEditId);
+    const _msDiffs=[];
+    if(_old?.name!==name) _msDiffs.push(`name: "${_old?.name}" → "${name}"`);
+    if(_old?.dayIdx!==dayIdx) _msDiffs.push(`date: ${_old?.dayIdx?sd(_old.dayIdx):'—'} → ${sd(dayIdx)}`);
+    const _prevIds=_old?.taskIds||[]; const _addedTs=taskIds.filter(id=>!_prevIds.includes(id)); const _removedTs=_prevIds.filter(id=>!taskIds.includes(id));
+    if(_addedTs.length) _msDiffs.push(`+tasks: ${_addedTs.map(id=>TASKS.find(t=>t.id===id)?.name||id).join(', ')}`);
+    if(_removedTs.length) _msDiffs.push(`-tasks: ${_removedTs.map(id=>TASKS.find(t=>t.id===id)?.name||id).join(', ')}`);
+    addLog({type:'milestone',task:name,from:'',to:_msDiffs.length?_msDiffs.join(' · '):'saved'});
   } else {
     MILESTONES.push({id:'ms'+Date.now().toString(36),name,dayIdx,color,taskIds});
-    addLog({type:'milestone',task:name,from:'',to:'created'});
+    addLog({type:'milestone',task:name,from:'',to:`created — ${sd(dayIdx)}${taskIds.length?' · '+taskIds.length+' task(s)':''}`});
   }
   persistState(['milestones']);
   CM('m-milestone');
@@ -5920,11 +5946,11 @@ function renderLogsPage(){
   el.innerHTML=`<div style="overflow-x:auto">
     <table class="dt">
       <thead><tr>
-        <th style="width:80px">Time</th>
-        <th style="width:90px">User</th>
-        <th style="width:70px">Type</th>
-        <th style="min-width:180px">Task</th>
-        <th>Details</th>
+        <th style="width:75px">Time</th>
+        <th style="width:85px">User</th>
+        <th style="width:65px">Type</th>
+        <th style="min-width:160px">Task</th>
+        <th style="min-width:300px">Details</th>
       </tr></thead>
       <tbody>
         ${logs.map(e=>{
@@ -5936,7 +5962,7 @@ function renderLogsPage(){
             <td style="font-size:10px;font-weight:600;color:var(--fg1)">${user}</td>
             <td><span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;color:${col};padding:2px 6px;background:${col}18;border-radius:4px">${ico} ${e.type}</span></td>
             <td style="font-size:11px;color:var(--fg0);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.task}">${e.task||'—'}</td>
-            <td style="font-size:10px;color:var(--fg2)">${e.from?`<span style="color:var(--fg3)">${e.from}</span> → `:''}<span style="color:var(--fg1)">${e.to||''}</span></td>
+            <td style="font-size:10px;color:var(--fg2);white-space:normal;line-height:1.5">${e.from?`<span style="color:var(--fg3)">${e.from}</span><span style="color:var(--fg3);margin:0 4px">→</span>`:''}<span style="color:var(--fg1)">${e.to||''}</span></td>
           </tr>`;
         }).join('')}
       </tbody>
