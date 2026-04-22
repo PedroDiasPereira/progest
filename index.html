@@ -548,12 +548,17 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
           <select class="fi" id="log-filter-user" style="font-size:11px" onchange="renderLogsPage()"><option value="">All users</option></select>
           <select class="fi" id="log-filter-type" style="font-size:11px" onchange="renderLogsPage()">
             <option value="">All types</option>
-            <option value="timelog">⏱ Time log</option>
-            <option value="create">✚ Created</option>
-            <option value="edit">✎ Edited</option>
+            <option value="create">✦ Create</option>
+            <option value="edit">✎ Edit</option>
+            <option value="delete">🗑 Delete</option>
+            <option value="move">→ Move</option>
             <option value="status">◉ Status</option>
-            <option value="move">→ Moved</option>
-            <option value="delete">✕ Deleted</option>
+            <option value="timelog">⏱ Time log</option>
+            <option value="split">⌥ Split</option>
+            <option value="project">📁 Project</option>
+            <option value="milestone">◆ Milestone</option>
+            <option value="resource">👤 Resource</option>
+            <option value="team">👥 Team</option>
           </select>
           <button class="btn btn-sm btn-d" onclick="if(confirm('Clear all logs?')){GLOG.length=0;renderLogsPage();}">🗑 Clear</button>
         </div>
@@ -643,9 +648,18 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
 <!-- MILESTONE MODAL -->
 <div id="m-milestone" class="mbg">
-  <div class="modal" style="width:480px;max-width:95vw">
-    <div class="mh"><span class="mt" id="ms-modal-title">New Milestone</span><button class="mc" onclick="CM('m-milestone')">✕</button></div>
-    <div class="mb">
+  <div class="modal" style="width:520px;max-width:95vw">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-size:14px;font-weight:700;color:var(--fg0)" id="ms-modal-title">New Milestone</span>
+      <button onclick="CM('m-milestone')" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--fg3);line-height:1;padding:2px 6px">✕</button>
+    </div>
+    <!-- Tabs -->
+    <div class="tb-bar" style="margin-bottom:16px">
+      <div class="tb on" id="ms-tab-details" onclick="window._msSwitchTab('details')">Details</div>
+      <div class="tb" id="ms-tab-notes" onclick="window._msSwitchTab('notes')">📋 Release Notes</div>
+    </div>
+    <!-- Tab: Details -->
+    <div id="ms-pane-details">
       <div class="g2">
         <div class="fg" style="grid-column:span 2"><label class="fl">Name *</label><input class="fi" id="ms-name" placeholder="e.g. CFP Delivery"></div>
         <div class="fg"><label class="fl">Date *</label><input type="date" class="fi" id="ms-date" oninput="_updateMsColorAvailability()"></div>
@@ -670,6 +684,13 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
           <select class="fi" id="ms-task-res" style="flex:1;min-width:90px;font-size:11px" onchange="_renderMsTaskListFiltered()"><option value="">All resources</option></select>
         </div>
         <div id="ms-task-list" style="max-height:200px;overflow-y:auto;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r8);padding:6px"></div>
+      </div>
+    </div>
+    <!-- Tab: Release Notes -->
+    <div id="ms-pane-notes" style="display:none">
+      <div class="fg">
+        <label class="fl">Release Notes</label>
+        <textarea class="fi" id="ms-release-notes" rows="12" placeholder="Describe what was released, what changed, known issues…" style="resize:vertical;font-size:11px;line-height:1.6"></textarea>
       </div>
     </div>
     <div class="mf">
@@ -1183,7 +1204,7 @@ function barH(t, segH, segDur){
 // STATE
 const S = {
   page:'dashboard', viewBy:'project', zoom:'week', offset:0, _wlView:'week', _wlOffset:0, _sortBy:'chrono',
-  statusFilter:['todo','doing','paused','hold'],
+  statusFilter:['todo','doing','paused','ready','hold'],
   selectedTags:[], // multi-tag filter
   vbFilter:[], // selected projects/teams/resources for view
   charts:{},
@@ -1191,8 +1212,8 @@ const S = {
   tm:'total', // time mode for current modal
 };
 
-const SLABELS = {todo:'To Do',doing:'In Progress',paused:'Paused',done:'Done',hold:'On Hold',cancelled:'Cancelled'};
-const SCOLS   = {todo:'var(--fg3)',doing:'var(--acc)',paused:'var(--acc)',done:'var(--ok)',hold:'var(--warn)',cancelled:'var(--danger)'};
+const SLABELS = {todo:'To Do',doing:'In Progress',paused:'Paused',ready:'Ready for MS',done:'Done',hold:'On Hold',cancelled:'Cancelled'};
+const SCOLS   = {todo:'var(--fg3)',doing:'var(--acc)',paused:'var(--acc)',ready:'#00c9a0',done:'var(--ok)',hold:'var(--warn)',cancelled:'var(--danger)'};
 
 // Working visual segments (auto-split on non-working days)
 function wSegs(startDay, dur, cols, taskId=null, resId=null){
@@ -1221,6 +1242,7 @@ function nav(p){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
   const pg=document.getElementById(`page-${p}`);
   if(pg) pg.classList.add('on');
+  if(S_USER) _saveSessionState();
   const names={dashboard:'Dashboard',gantt:'Dynamic Gantt',projects:'Projects',resources:'Resources',teams:'Teams',myspace:'My Space',howto:'How to Use',production:'Production',logs:'Activity Logs'};
   document.getElementById('tb-pn').textContent=names[p]||p;
   if(p==='dashboard')  renderDash();
@@ -1296,7 +1318,7 @@ document.addEventListener('click',e=>{
 // ============================================================
 function buildSFChips(){
   const el=document.getElementById('sf-chips');
-  el.innerHTML=['todo','doing','paused','done','hold','cancelled'].map(s=>`
+  el.innerHTML=['todo','doing','paused','ready','done','hold','cancelled'].map(s=>`
     <span class="fc ${S.statusFilter.includes(s)?'on':''}" onclick="toggleSF('${s}')">
       <span style="width:5px;height:5px;border-radius:50%;background:${SCOLS[s]}"></span>${SLABELS[s]}
     </span>`).join('');
@@ -1686,6 +1708,7 @@ function renderGantt(){
   // Use selected project for deadline display
   if(S._activeProjId){ const _ap=PROJECTS.find(p=>p.id===S._activeProjId); if(_ap) PROJ=_ap; }
   else if(PROJECTS.length) PROJ=PROJECTS[0];
+  else PROJ={name:'PAZZI',deadline:null};
   const pdl=PROJ.deadline?dateToIdx(PROJ.deadline):null;
   const allEnds=TASKS.map(t=>tEnd(t)).filter(Boolean);
   const lastEnd=allEnds.length?Math.max(...allEnds):null;
@@ -2533,6 +2556,10 @@ window.ctxStat=(s)=>{
   const t=TASKS.find(x=>x.id===S.ctxId);
   if(!t) return;
   if(s==='hold'){ _showHoldDialog(S.ctxId); return; }
+  if(s==='done'&&taskHasMilestone(t.id)){
+    s='ready';
+    notify(`"${t.name}" → Ready for Milestone`,'success');
+  }
   t.status=s;
   addLog({type:'status',task:t.name,from:'',to:SLABELS[s]});
   notify(`"${t.name}" → ${SLABELS[s]}`,'success');
@@ -2878,6 +2905,8 @@ window.saveTask=()=>{
 };
 window.delEditTask=()=>{
   if(!S.editId) return;
+  const _dt=TASKS.find(x=>x.id===S.editId);
+  addLog({type:'delete',task:_dt?.name||S.editId,from:'',to:'deleted'});
   TASKS=TASKS.filter(t=>t.id!==S.editId);
   CM('m-task');notify('Deleted','warn');
   renderGantt();renderDash();
@@ -2962,8 +2991,16 @@ window.confirmSplit=()=>{
 // PROJECT DEADLINE
 // ============================================================
 window.saveProjDl=()=>{
-  PROJ.deadline=document.getElementById('proj-dl-inp').value||null;
+  const dl=document.getElementById('proj-dl-inp').value||null;
+  PROJ.deadline=dl;
+  // Also persist deadline on the matching PROJECTS entry
+  const activeProjId=S._activeProjId||(PROJECTS.length?PROJECTS[0].id:null);
+  const proj=PROJECTS.find(p=>p.id===activeProjId)||PROJECTS[0];
+  if(proj) proj.deadline=dl;
+  addLog({type:'project',task:PROJ?.name||'Project',from:'',to:'deadline: '+(dl||'cleared')});
+  persistState(['projects','meta']);
   CM('m-proj');renderGantt();
+  notify('Deadline saved','success');
 };
 
 // ============================================================
@@ -3170,16 +3207,21 @@ function toggleResTeam(i,teamId,checked){
   if(!RESOURCES[i].teams) RESOURCES[i].teams=[];
   if(checked){ if(!RESOURCES[i].teams.includes(teamId)) RESOURCES[i].teams.push(teamId); }
   else RESOURCES[i].teams=RESOURCES[i].teams.filter(x=>x!==teamId);
+  const tm=getTeam(teamId);
+  addLog({type:'resource',task:RESOURCES[i].name,from:'',to:(checked?'added to ':'removed from ')+(tm?.name||teamId)});
   persistState(['resources']);
 }
 window.addRes=()=>{
   if(!isAdmin()){notify('Apenas admins podem adicionar recursos','warn');return;}
   RESOURCES.push({id:'r'+Date.now(),name:'New Resource',initials:'NR',avClass:'av-b',teams:[],role:'',dailyCap:8});
+  addLog({type:'resource',task:'New Resource',from:'',to:'created'});
   persistState(['resources']); renderRes();
 };
 window.delRes=(id)=>{
   if(!isAdmin()){notify('Apenas admins podem eliminar recursos','warn');return;}
   if(!confirm('Delete resource?')) return;
+  const _dr=getRes(id);
+  addLog({type:'resource',task:_dr?.name||id,from:'',to:'deleted'});
   RESOURCES=RESOURCES.filter(r=>r.id!==id);
   persistState(['resources']); renderRes();
 };
@@ -4061,6 +4103,7 @@ window.adminFixData=async()=>{
 window.adminResetPw=async(resId)=>{
   if(!isAdmin()) return;
   const r=getRes(resId); if(!r) return;
+  addLog({type:'resource',task:r.name,from:'',to:'password reset'});
   const h=await sha256(r.name.toLowerCase().replace(/\s+/g,''));
   const cur=await loadAuth(resId)||{};
   await saveAuth(resId,{...cur,hash:h,mustChange:true});
@@ -4070,7 +4113,9 @@ window.adminResetPw=async(resId)=>{
 window.adminToggleAdmin=async(resId)=>{
   if(!isAdmin()||resId==='pp') return; // pp is always admin
   const cur=await loadAuth(resId)||{isAdmin:false};
-  await saveAuth(resId,{...cur,isAdmin:!cur.isAdmin});
+  const newAdmin=!cur.isAdmin;
+  await saveAuth(resId,{...cur,isAdmin:newAdmin});
+  addLog({type:'resource',task:getRes(resId)?.name||resId,from:'',to:newAdmin?'granted admin':'revoked admin'});
   notify(`Admin de ${getRes(resId)?.name} alterado`,'success');
 };
 
@@ -4093,7 +4138,8 @@ window.cycleStatus=(taskId)=>{
   const t=TASKS.find(x=>x.id===taskId);
   if(!t) return;
   // Single click always marks done
-  const next='done';
+  const hasMsLink=taskHasMilestone(taskId);
+  const next=hasMsLink?'ready':'done';
   t.status=next; t.prog=100;
   addLog({type:'status',task:t.name,from:'',to:SLABELS[next]});
   notify(`"${t.name}" → Done ✓`,'success');
@@ -4103,7 +4149,8 @@ window.showStatusMenu=(e,taskId)=>{
   const t=TASKS.find(x=>x.id===taskId);
   if(!t) return;
   const menu=document.getElementById('stat-menu');
-  const allowed=['done','hold','cancelled'];
+  const hasMsLink=taskHasMilestone(taskId);
+  const allowed=[hasMsLink?'ready':'done','hold','cancelled'];
   menu.innerHTML=allowed.map(s=>`
     <button onclick="setTaskStatus('${taskId}','${s}')" style="display:flex;align-items:center;gap:7px;width:100%;background:${t.status===s?'var(--bg3)':'none'};border:none;padding:6px 10px;font-size:11px;color:${t.status===s?'var(--fg0)':'var(--fg1)'};cursor:pointer;border-radius:4px;font-family:var(--font);text-align:left">
       <span style="width:8px;height:8px;border-radius:50%;background:${SCOLS[s]};flex-shrink:0"></span>${SLABELS[s]}
@@ -4119,6 +4166,11 @@ window.setTaskStatus=(taskId,status)=>{
   if(status==='hold'){
     _showHoldDialog(taskId);
     return;
+  }
+  // If task has a milestone, 'done' becomes 'ready'
+  if(status==='done'&&taskHasMilestone(taskId)){
+    status='ready';
+    notify(`"${t.name}" → Ready for Milestone (will auto-complete after milestone date)`,'success');
   }
   t.status=status;
   if(status==='doing'&&!t.startedAt){ t.startedAt=GANTT_TODAY; if(!t.start) t.start=GANTT_TODAY; }
@@ -4350,17 +4402,9 @@ async function fbLoad(){
     if(d.projects)  PROJECTS =_toArr(d.projects);
     _applyMeta(d.meta);
     migrateTasks();
-    // Save corrected data immediately (bypass debounce) so SSE echo doesn't corrupt it
-    try{
-      const nowTs=Date.now();
-      // Wrap in {tasks, meta:{ts}} so SSE echo has matching ts
-      await fetch(_FB_ROOT+'.json',{
-        method:'PATCH',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({tasks:_toObj(TASKS),meta:{..._buildMeta(),ts:nowTs}})
-      });
-      _lastSaveTs=nowTs;
-    }catch(e){}
+    // Only save meta on load (never overwrite tasks — would lose concurrent edits)
+    const nowTs=Date.now();
+    _lastSaveTs=nowTs; // suppress SSE echo
     return true;
   }catch(e){ return false; }
 }
@@ -4454,15 +4498,25 @@ function uTask(id,field,value){
 }
 function delTask(id){
   if(!confirm('Eliminar esta tarefa?')) return;
+  const _dt2=TASKS.find(x=>x.id===id);
+  addLog({type:'delete',task:_dt2?.name||id,from:'',to:'deleted'});
   TASKS=TASKS.filter(t=>t.id!==id);
   persistState(['tasks']); renderDash(); renderGantt();
 }
 window.uRes=(i,field,value)=>{
-  if(RESOURCES[i]) RESOURCES[i][field]=value;
+  const r=RESOURCES[i]; if(!r) return;
+  const old=r[field];
+  r[field]=value;
+  if(['name','role','dailyCap'].includes(field)&&old!==value)
+    addLog({type:'resource',task:r.name||'Resource',from:String(old),to:String(value)+' ('+field+')'});
   persistState(['resources']);
 };
 window.uTeam=(i,field,value)=>{
-  if(TEAMS[i]) TEAMS[i][field]=value;
+  const t=TEAMS[i]; if(!t) return;
+  const old=t[field];
+  t[field]=value;
+  if(['name','leaderId'].includes(field)&&old!==value)
+    addLog({type:'team',task:t.name||'Team',from:String(old),to:String(value)+' ('+field+')'});
   persistState(['teams']);
 };
 
@@ -4606,8 +4660,8 @@ window.tpDone=(taskId)=>{
     _timerState={}; _saveTimerState();
     clearInterval(_timerInterval); _timerInterval=null;
   }
-  t.status='done'; t.prog=100;
-  addLog({type:'status',task:t.name,from:'',to:'Done'});
+  t.status=taskHasMilestone(taskId)?'ready':'done'; t.prog=100;
+  addLog({type:'status',task:t.name,from:'',to:taskHasMilestone(taskId)?'Ready for Milestone':'Done'});
   persistState(['tasks']); _reRenderCurrent();
   notify(`"${t.name}" → Done ✓`,'success');
   renderTimerPanel();
@@ -5339,8 +5393,10 @@ window.saveMilestone=()=>{
   if(_msEditId){
     const ms=MILESTONES.find(m=>m.id===_msEditId);
     if(ms){Object.assign(ms,{name,dayIdx,color,taskIds});}
+    addLog({type:'milestone',task:name,from:'',to:'edited'});
   } else {
     MILESTONES.push({id:'ms'+Date.now().toString(36),name,dayIdx,color,taskIds});
+    addLog({type:'milestone',task:name,from:'',to:'created'});
   }
   persistState(['milestones']);
   CM('m-milestone');
@@ -5350,6 +5406,8 @@ window.saveMilestone=()=>{
 
 window.deleteMilestone=()=>{
   if(!_msEditId||!confirm('Delete this milestone?')) return;
+  const _dm=MILESTONES.find(m=>m.id===_msEditId);
+  addLog({type:'milestone',task:_dm?.name||'',from:'',to:'deleted'});
   MILESTONES=MILESTONES.filter(m=>m.id!==_msEditId);
   if(_msFilter===_msEditId) _msFilter=null;
   persistState(['milestones']);
@@ -6028,6 +6086,68 @@ function _renderTaskMilestones(taskId){
   wrap.innerHTML=html;
 }
 window._updateTaskMilestones=()=>_renderTaskMilestones(S.editId||null);
+
+function taskHasMilestone(taskId){
+  return MILESTONES.some(m=>(m.taskIds||[]).includes(taskId));
+}
+
+function _checkMilestoneAutoComplete(){
+  let changed=false;
+  MILESTONES.forEach(ms=>{
+    if(!ms.dayIdx||ms.dayIdx>GANTT_TODAY) return; // milestone date not yet passed
+    (ms.taskIds||[]).forEach(tid=>{
+      const t=TASKS.find(x=>x.id===tid);
+      if(t&&t.status==='ready'){
+        t.status='done';
+        addLog({type:'status',task:t.name,from:'Ready for MS',to:'Done (milestone passed)'});
+        changed=true;
+      }
+    });
+  });
+  if(changed){ persistState(['tasks']); renderGantt&&renderGantt(); renderDash&&renderDash(); }
+}
+
+window._msSwitchTab=(tab)=>{
+  document.getElementById('ms-pane-details').style.display=tab==='details'?'':'none';
+  document.getElementById('ms-pane-notes').style.display=tab==='notes'?'':'none';
+  document.getElementById('ms-tab-details').classList.toggle('on',tab==='details');
+  document.getElementById('ms-tab-notes').classList.toggle('on',tab==='notes');
+};
+
+function _saveSessionState(){
+  if(!S_USER?.resId) return;
+  try{
+    sessionStorage.setItem('pg_ui_'+S_USER.resId, JSON.stringify({
+      page: S.page,
+      viewBy: S.viewBy,
+      vbFilter: S.vbFilter,
+      statusFilter: S.statusFilter,
+      offset: S.offset,
+      _sortBy: S._sortBy||'chrono',
+      _wlView: S._wlView||'week',
+      _activeProjId: S._activeProjId||null,
+      _myDayOffset: _myDayOffset||0
+    }));
+  }catch(e){}
+}
+
+function _restoreSessionState(){
+  if(!S_USER?.resId) return;
+  try{
+    const raw=sessionStorage.getItem('pg_ui_'+S_USER.resId);
+    if(!raw) return;
+    const saved=JSON.parse(raw);
+    if(saved.viewBy) S.viewBy=saved.viewBy;
+    if(saved.vbFilter) S.vbFilter=saved.vbFilter;
+    if(saved.statusFilter) S.statusFilter=saved.statusFilter;
+    if(saved.offset) S.offset=saved.offset;
+    if(saved._sortBy) S._sortBy=saved._sortBy;
+    if(saved._wlView) S._wlView=saved._wlView;
+    if(saved._activeProjId) S._activeProjId=saved._activeProjId;
+    if(saved._myDayOffset) _myDayOffset=saved._myDayOffset;
+    return saved.page; // return saved page to navigate to
+  }catch(e){ return null; }
+}
 // ============================================================
 // INIT
 // ============================================================
