@@ -1137,7 +1137,8 @@ function tDur(t)  { if(t.segments){ const l=t.segments[t.segments.length-1]; ret
 function tEnd(t)  { if(t.segments){ const l=t.segments[t.segments.length-1]; return l.start+l.dur-1; } return (t.start||1)+(t.dur||1)-1; }
 
 // Migrate tasks: fill resHours if empty, build taskTeams if missing
-function migrateTasks(){
+function migrateTasks(suppressSave){
+  let _migrChanged=false;
   TASKS.forEach(t=>{
     const allIds=[t.resId,...(t.coResIds||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
 
@@ -1152,6 +1153,7 @@ function migrateTasks(){
         const each=Math.round(total/allIds.length*10)/10;
         t.resHours={};
         allIds.forEach((id,i)=>{ t.resHours[id]=i===allIds.length-1?Math.round((total-each*i)*10)/10:each; });
+        _migrChanged=true;
       }
     }
 
@@ -4361,13 +4363,20 @@ function _applyMeta(m){
 }
 
 // Merge inteligente: une arrays por ID sem perder itens locais recentes
-function _mergeArr(local, remote){
+function _mergeArr(local, remote, entityKey){
   if(!remote) return local;
   const remoteMap = new Map(remote.map(x=>[x.id,x]));
-  const localMap  = new Map(local.map(x=>[x.id,x]));
-  // Itens do remote (base), mais itens locais que o remote ainda não conhece
-  const result = [...remote];
-  local.forEach(x=>{ if(!remoteMap.has(x.id)) result.push(x); });
+  // If we have pending local changes for this entity, local wins for existing items
+  const ps=_pendingSave[entityKey]; const localWins = entityKey && ps && (ps instanceof Set ? ps.size>0 : ps);
+  const result = remote.map(r=>{
+    const loc = local.find(l=>l.id===r.id);
+    // Local wins if: we have pending saves for this entity, OR local has newer timeLogs
+    if(loc && localWins) return loc;
+    if(loc && Array.isArray(loc.timeLogs) && Array.isArray(r.timeLogs) && loc.timeLogs.length > r.timeLogs.length) return loc;
+    return r;
+  });
+  // Add local-only items (new tasks not yet on remote)
+  local.forEach(l=>{ if(!remoteMap.has(l.id)) result.push(l); });
   return result;
 }
 
@@ -4392,7 +4401,7 @@ function loadLocal(){
     if(d.RESOURCES) RESOURCES=d.RESOURCES;
     if(d.TEAMS)     TEAMS    =d.TEAMS;
     _applyMeta(d);
-    migrateTasks();
+    migrateTasks(true);
     return true;
   }catch(e){return false;}
 }
@@ -4420,7 +4429,7 @@ async function fbLoad(){
     if(d.teams)     TEAMS    =_toArr(d.teams);
     if(d.projects)  PROJECTS =_toArr(d.projects);
     _applyMeta(d.meta);
-    migrateTasks();
+    migrateTasks(true); // suppress save during initial load
     // Only save meta on load (never overwrite tasks — would lose concurrent edits)
     const nowTs=Date.now();
     _lastSaveTs=nowTs; // suppress SSE echo
@@ -4431,35 +4440,48 @@ async function fbLoad(){
 // ── Firebase PATCH — só envia o que mudou ────────────────────
 async function fbFlush(){
   if(!Object.keys(_pendingSave).length) return;
-  const patch={};
-  if(_pendingSave.milestones) patch.milestones=_toObj(MILESTONES);
-  if(_pendingSave.tasks)     patch.tasks    =_toObj(TASKS);
-  if(_pendingSave.resources) patch.resources=_toObj(RESOURCES);
-  if(_pendingSave.teams)     patch.teams    =_toObj(TEAMS);
-  if(_pendingSave.projects)  patch.projects =_toObj(PROJECTS);
-  if(_pendingSave.meta)      patch.meta     =_buildMeta();
-  if(_pendingSave.logs)      patch.logs     =GLOG.slice(0,500);
+  const snap=_pendingSave;
   _pendingSave={};
+  // Build per-entity patches — PATCH /pg/ENTITY.json {id: item} so concurrent saves never conflict
+  const sends=[];
+  const _patchEntity=(path,items,ids)=>{
+    const patch={};
+    if(ids.has('__all__')){ items.forEach(x=>{ patch[x.id]=x; }); }
+    else { ids.forEach(id=>{ const x=items.find(i=>i.id===id); if(x) patch[x.id]=x; }); }
+    if(Object.keys(patch).length) sends.push({path,patch});
+  };
+  if(snap.tasks)     _patchEntity('/tasks',    TASKS,     snap.tasks);
+  if(snap.milestones)_patchEntity('/milestones',MILESTONES,snap.milestones);
+  if(snap.resources) _patchEntity('/resources', RESOURCES, snap.resources);
+  if(snap.teams)     _patchEntity('/teams',     TEAMS,     snap.teams);
+  if(snap.projects)  _patchEntity('/projects',  PROJECTS,  snap.projects);
+  if(snap.meta)      sends.push({path:'/meta',  patch:_buildMeta()});
+  if(snap.logs)      sends.push({path:'/logs',  patch:GLOG.slice(0,500),isArr:true});
   try{
-    const r=await fetch(_FB_ROOT+'.json',{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(patch)
-    });
-    if(!r.ok) throw r.status;
+    await Promise.all(sends.map(({path,patch,isArr})=>
+      fetch(_FB_ROOT+path+'.json',{
+        method:isArr?'PUT':'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(patch)
+      }).then(r=>{ if(!r.ok) throw r.status; })
+    ));
     _lastSaveTs=Date.now();
     setSyncStatus('✓ saved');
-  }catch(e){ setSyncStatus('⚠ offline','var(--warn)'); }
+  }catch(e){ setSyncStatus('⚠ offline','var(--warn)'); _pendingSave=snap; /* retry */ }
 }
 
-function persistState(changed){
-  // changed = array de entidades alteradas, ex: ['tasks'] ou ['resources','meta']
-  // Se omitido, marca tudo
-  const c = changed||['tasks','resources','teams','projects','meta'];
-  c.forEach(k=>_pendingSave[k]=true);
+function persistState(changed, changedIds){
+  // changed = array of entity names e.g. ['tasks'] or ['resources','meta']
+  // changedIds = optional {tasks:[id1,id2], projects:[id3]} for fine-grained tracking
+  const ents = changed||['tasks','resources','teams','projects','meta','milestones'];
+  ents.forEach(k=>{
+    if(!_pendingSave[k]) _pendingSave[k]=new Set();
+    if(changedIds&&changedIds[k]) changedIds[k].forEach(id=>_pendingSave[k].add(id));
+    else _pendingSave[k].add('__all__'); // mark all items changed
+  });
   saveLocal();
   clearTimeout(persistState._t);
-  persistState._t=setTimeout(fbFlush,600);
+  persistState._t=setTimeout(fbFlush,300);
 }
 
 // ── SSE — recebe atualizações em tempo real ──────────────────
@@ -4476,19 +4498,19 @@ function startSSE(){
       // Aplicar apenas o caminho que mudou
       if(path==='/'||path===''){
         // Load inicial completo
-        if(data.tasks)     TASKS    =_mergeArr(TASKS,    _toArr(data.tasks));
-        if(data.resources) RESOURCES=_mergeArr(RESOURCES,_toArr(data.resources));
-        if(data.teams)     TEAMS    =_mergeArr(TEAMS,    _toArr(data.teams));
-        if(data.projects)  PROJECTS =_mergeArr(PROJECTS, _toArr(data.projects));
+        if(data.tasks)     TASKS    =_mergeArr(TASKS,    _toArr(data.tasks),'tasks');
+        if(data.resources) RESOURCES=_mergeArr(RESOURCES,_toArr(data.resources),'resources');
+        if(data.teams)     TEAMS    =_mergeArr(TEAMS,    _toArr(data.teams),'teams');
+        if(data.projects)  PROJECTS =_mergeArr(PROJECTS, _toArr(data.projects),'projects');
         _applyMeta(data.meta);
       } else if(path==='/tasks'){
-        TASKS=_mergeArr(TASKS,_toArr(data));
+        TASKS=_mergeArr(TASKS,_toArr(data),'tasks');
       } else if(path==='/resources'){
-        RESOURCES=_mergeArr(RESOURCES,_toArr(data));
+        RESOURCES=_mergeArr(RESOURCES,_toArr(data),'resources');
       } else if(path==='/teams'){
-        TEAMS=_mergeArr(TEAMS,_toArr(data));
+        TEAMS=_mergeArr(TEAMS,_toArr(data),'teams');
       } else if(path==='/projects'){
-        PROJECTS=_mergeArr(PROJECTS,_toArr(data));
+        PROJECTS=_mergeArr(PROJECTS,_toArr(data),'projects');
       } else if(path==='/meta'){
         _applyMeta(data);
       }
@@ -6167,6 +6189,30 @@ function _restoreSessionState(){
     return saved.page; // return saved page to navigate to
   }catch(e){ return null; }
 }
+
+// Force save on tab close / navigate away
+window.addEventListener('beforeunload', ()=>{
+  if(!Object.keys(_pendingSave).length) return;
+  clearTimeout(persistState._t);
+  const snap2=_pendingSave; _pendingSave={};
+  const patch={};
+  const _be=(k,arr)=>{ if(!snap2[k]) return; const p={}; const ids=snap2[k]; if(ids.has('__all__')) arr.forEach(x=>p[x.id]=x); else ids.forEach(id=>{const x=arr.find(i=>i.id===id);if(x)p[x.id]=x;}); if(Object.keys(p).length) patch[k]=p; };
+  _be('tasks',TASKS); _be('milestones',MILESTONES); _be('resources',RESOURCES); _be('teams',TEAMS); _be('projects',PROJECTS);
+  if(snap2.meta) patch.meta=_buildMeta();
+  if(snap2.logs) patch.logs=GLOG.slice(0,500);
+  try{
+    // Per-entity PATCHes with keepalive so concurrent saves don't conflict
+    const _e={tasks:TASKS,milestones:MILESTONES,resources:RESOURCES,teams:TEAMS,projects:PROJECTS};
+    for(const [k,arr] of Object.entries(_e)){
+      if(patch[k]) fetch(_FB_ROOT+'/'+k+'.json',{method:'PATCH',keepalive:true,
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(patch[k])}).catch(()=>{});
+    }
+    if(patch.meta) fetch(_FB_ROOT+'/meta.json',{method:'PATCH',keepalive:true,
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(patch.meta)}).catch(()=>{});
+  } catch(e){}
+  _pendingSave={};
+});
 // ============================================================
 // INIT
 // ============================================================
