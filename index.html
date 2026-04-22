@@ -1587,10 +1587,14 @@ function visTasks(){
   const search=(document.getElementById('g-search')?.value||'').toLowerCase();
   // Milestone-associated tasks are always visible when milestone filter is active
   const msTaskIds=_msFilter?new Set((MILESTONES.find(m=>m.id===_msFilter)?.taskIds)||[]):new Set();
+  const _yst=GANTT_TODAY-1;
   let tasks=TASKS.filter(t=>{
     const isMsTask=msTaskIds.has(t.id);
-    if(_msFilter && !isMsTask) return false; // must be in milestone
-    if(!isMsTask){ // only apply other filters to non-milestone tasks
+    if(_msFilter && !isMsTask) return false;
+    // Tasks with past time logs always visible (as historical records)
+    const hasPastLogs=(t.timeLogs||[]).some(l=>{ const di=dateToIdx(l.date); return di&&di<=_yst; });
+    if(hasPastLogs) return true;
+    if(!isMsTask){
       if(!S.statusFilter.includes(t.status)) return false;
       if(S.selectedTags.length && !S.selectedTags.some(tg=>(t.tags||[]).includes(tg))) return false;
       if(search && !t.name.toLowerCase().includes(search)) return false;
@@ -1674,6 +1678,21 @@ function renderGantt(){
 
   // Compute exact per-day schedules before rendering
   computeAllSchedules();
+  // For ALL tasks: past days (≤ yesterday) show actual timeLogs, not planned hours
+  {
+    const _yst=GANTT_TODAY-1;
+    TASKS.forEach(t=>{
+      if(!t._sched) t._sched={};
+      // First clear planned hours for past days
+      Object.keys(t._sched).forEach(d=>{ if(+d<=_yst) delete t._sched[+d]; });
+      // Then fill in actual logged hours for past days
+      (t.timeLogs||[]).forEach(l=>{
+        const di=dateToIdx(l.date);
+        if(di&&di<=_yst&&(l.hours||0)>0.001)
+          t._sched[di]=(t._sched[di]||0)+(l.hours||0);
+      });
+    });
+  }
 
   // Populate project selector
   const _pSel=document.getElementById('proj-selector');
@@ -1941,7 +1960,7 @@ function renderGantt(){
           onmouseover="if(_mv)highlightDrop(this)" onmouseout="clearHL(this)">
           ${pdlOverlay}${markers}
           ${taskMsOverlay}
-          <div class="${barCls+(segLk?' locked-bar':'')}" style="background:${isDone?'rgba(34,197,94,.18)':locked?barColor+'55':barColor};height:${bh}px;width:100%;position:relative;display:flex;align-items:center;cursor:${segLk?'not-allowed':canEdit?'grab':'default'}"
+          <div class="${barCls+(segLk?' locked-bar':'')}" style="background:${isDone?'rgba(34,197,94,.3)':t.status==='ready'?'rgba(0,201,160,.3)':locked?barColor+'55':barColor};height:${bh}px;width:100%;position:relative;display:flex;align-items:center;cursor:${segLk?'not-allowed':canEdit?'grab':'default'}"
             title="${tipText}"
             onmousedown="${locked||!canEdit||segLk?'':` bMD(event,'${t.id}',${day},${COL_W})`}"
             onclick="if(!_mv)openEditTask('${t.id}')"
@@ -2119,7 +2138,7 @@ function computeAllSchedules(){
   const byRes={};
   TASKS.forEach(t=>{
     if(t.status==='doing'||t.status==='paused') if(!t.start) t.start=GANTT_TODAY; // anchor active tasks
-    if(!t.resId||!t.start||t.status==='done'||t.status==='cancelled') return;
+    if(!t.resId||!t.start||t.status==='done'||t.status==='cancelled'||t.status==='ready') return;
     if(!byRes[t.resId]) byRes[t.resId]=[];
     byRes[t.resId].push(t);
   });
