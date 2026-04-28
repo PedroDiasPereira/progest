@@ -150,7 +150,7 @@ textarea.fi{resize:vertical}
 .th-d.today{background:rgba(79,156,249,.14)!important;color:var(--acc)!important}
 .th-d.nw-h{background:#101520!important;color:#3a4a60!important}
 .th-d.en-h{background:rgba(34,197,94,.07)!important;color:#4ade80!important}
-.gt td{padding:0;vertical-align:middle;height:28px}
+.gt td{padding:0;vertical-align:top;min-height:28px}
 /* Sticky left cols — fixed widths */
 .stn{position:sticky;left:0;z-index:5;background:var(--bg1);border-right:1px solid var(--bd);width:240px;min-width:240px;max-width:240px}
 .sto{position:sticky;left:240px;z-index:5;background:var(--bg1);border-right:1px solid var(--bd);width:36px;min-width:36px;max-width:36px}
@@ -389,7 +389,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
 <!-- SIDEBAR -->
 <nav id="sb">
-  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.2</span></div></div>
+  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.3</span></div></div>
   <div class="sb-sec">Main</div>
   <div class="nav on" data-page="dashboard"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/></svg>Dashboard</div>
   <div class="nav" data-page="projects"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".9"/><rect x="8" y="1" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="5" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="12" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/></svg>Projects</div>
@@ -452,7 +452,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r12);padding:6px 12px">
         <!-- View -->
         <div class="tb-bar">
-          <div class="tb on" id="vb-pr" onclick="setVB('project',this)">Project</div>
+          <div class="tb" id="vb-pr" onclick="setVB('project',this)">Project</div>
           <div class="tb" id="vb-tm" onclick="setVB('team',this)">Teams</div>
           <div class="tb" id="vb-rs" onclick="setVB('resource',this)">Resources</div>
         </div>
@@ -463,6 +463,8 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
         <!-- Spacer -->
         <div style="flex:1"></div>
         <!-- Filters right-aligned -->
+        <button id="btn-show-subtasks" class="btn btn-sm" onclick="toggleSubtasks()" title="Show subtasks" style="font-size:9px;padding:3px 7px">⤷ Sub</button>
+        <button class="btn btn-sm" onclick="clearAllFilters()" title="Clear all filters" style="font-size:9px;padding:3px 7px;color:var(--fg2)">✕ Clear</button>
         <div id="sf-chips" style="display:flex;gap:3px;flex-wrap:wrap"></div>
         <div class="tag-dd" id="tag-dd">
           <button class="btn btn-sm" onclick="document.getElementById('tag-dd').classList.toggle('open');buildTagPanel()">Tags <span id="tag-sel-c" style="font-size:9px;color:var(--fg2)">(all)</span> ▾</button>
@@ -506,7 +508,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
           <div style="display:flex;gap:5px;flex-shrink:0">
             <button class="btn btn-p btn-sm" onclick="openAddTask()">+ Task</button>
             <button class="btn btn-sm" onclick="openAddMilestone()" style="background:rgba(123,97,255,.12);border-color:var(--acc2);color:var(--acc2)">◆ Milestone</button>
-            <button class="btn btn-sm" onclick="autoSchedule()" id="btn-autosched" style="background:rgba(0,201,160,.12);border-color:var(--acc3);color:var(--acc3)">⚡ Auto</button>
+            <button class="btn btn-sm" onclick="autoSchedule()" oncontextmenu="showAutoMenu(event)" id="btn-autosched" style="background:rgba(0,201,160,.12);border-color:var(--acc3);color:var(--acc3)" title="Left-click: auto-schedule all | Right-click: selective">⚡ Auto</button>
           </div>
         </div>
         
@@ -530,7 +532,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
     <!-- RESOURCES -->
     <div id="page-resources" class="page">
-      <div class="flex ic jb mb16"><div><div style="font-size:18px;font-weight:600">Resources</div><div style="font-size:11px;color:var(--fg2)">Multi-team support · daily capacity</div></div><div style="display:flex;gap:6px"><button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="adminClearLogs()" title="Clear all time logs (admin only)">🗑 Clear Logs</button><button class="btn btn-sm" onclick="adminFixData()" title="Recalculate resHours and teamIds for all tasks">🔧 Fix Data</button><button class="btn btn-p btn-sm" onclick="addRes()">+ Resource</button></div></div>
+      <div class="flex ic jb mb16"><div><div style="font-size:18px;font-weight:600">Resources</div><div style="font-size:11px;color:var(--fg2)">Multi-team support · daily capacity</div></div><div style="display:flex;gap:6px"><button class="btn btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="adminClearLogs()" title="Clear all time logs (admin only)">🗑 Clear Logs</button><button class="btn btn-p btn-sm" onclick="addRes()">+ Resource</button></div></div>
       <div class="card"><div style="overflow-x:auto"><table class="dt"><thead><tr><th style="min-width:140px">Name</th><th style="min-width:100px">Role</th><th style="min-width:190px">Teams</th><th style="min-width:85px">Daily cap (h)</th><th style="min-width:50px" title="Show in Dashboard workload">Dash</th><th style="min-width:70px">Tasks</th><th style="min-width:50px"></th></tr></thead><tbody id="res-b"></tbody></table></div></div>
     </div>
 
@@ -776,7 +778,8 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
     </div>
     <!-- Continuous task fields -->
     <div id="tt-cont-fields" style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fg" style="margin-bottom:0"><label class="fl">Total hours *</label><input type="number" class="fi" id="mt-h-tot" min="0" step="0.5" value="8" oninput="_onTotHoursChange()"></div>
+      <div class="fg" style="margin-bottom:0"><label class="fl">Total hours *</label><input type="number" class="fi" id="mt-h-tot" min="0" step="0.5" value="8" oninput="_onTotHoursChange();_updateTotalWithSubs()"></div>
+      <div class="fg" style="margin-bottom:0"><label class="fl" style="color:var(--fg3)">Total (w/ subtasks)</label><input type="text" class="fi" id="mt-h-total-sub" readonly style="background:var(--bg2);color:var(--fg3);cursor:default" value="—" tabindex="-1"></div>
       <div class="fg" style="margin-bottom:0"><label class="fl">Deadline (optional)</label><input type="date" class="fi" id="mt-dl"></div>
       <div style="grid-column:span 2;font-size:10px;color:var(--fg3);padding:2px 0">Start day auto-calculated to next free day of assigned resource.</div>
     </div>
@@ -849,6 +852,15 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
   <div class="fg" style="margin-bottom:12px">
     <label class="fl">Milestones</label>
     <div id="mt-ms-list" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:28px;padding:4px 0"></div>
+  </div>
+
+  <!-- Subtasks -->
+  <div class="fg" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <label class="fl" style="margin:0">Subtasks <span id="mt-sub-count" style="font-size:9px;color:var(--fg3)"></span></label>
+      <button type="button" onclick="window._addSubtask()" style="font-size:9px;padding:2px 8px;border-radius:5px;border:1px solid var(--bd);background:var(--bg3);color:var(--acc);cursor:pointer;font-family:var(--font)">+ Add</button>
+    </div>
+    <div id="mt-sub-list" style="display:flex;flex-direction:column;gap:3px"></div>
   </div>
 
   <!-- Hidden fields -->
@@ -1138,7 +1150,7 @@ function tEnd(t)  { if(t.segments){ const l=t.segments[t.segments.length-1]; ret
 
 // Migrate tasks: fill resHours if empty, build taskTeams if missing
 function migrateTasks(suppressSave){
-  let _migrChanged=false;
+  let _migrChanged=false; const _migrIds=[];
   TASKS.forEach(t=>{
     const allIds=[t.resId,...(t.coResIds||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
 
@@ -1153,7 +1165,7 @@ function migrateTasks(suppressSave){
         const each=Math.round(total/allIds.length*10)/10;
         t.resHours={};
         allIds.forEach((id,i)=>{ t.resHours[id]=i===allIds.length-1?Math.round((total-each*i)*10)/10:each; });
-        _migrChanged=true;
+        _migrChanged=true; _migrIds.push(t.id);
       }
     }
 
@@ -1205,7 +1217,7 @@ function barH(t, segH, segDur){
 
 // STATE
 const S = {
-  page:'dashboard', viewBy:'project', zoom:'week', offset:0, _wlView:'week', _wlOffset:0, _sortBy:'chrono',
+  page:'gantt', viewBy:'resource', zoom:'week', offset:0, _wlView:'week', _wlOffset:0, _sortBy:'chrono',
   statusFilter:['todo','doing','paused','ready','hold'],
   selectedTags:[], // multi-tag filter
   vbFilter:[], // selected projects/teams/resources for view
@@ -1344,40 +1356,50 @@ function setVB(v,el){
   renderGantt();
 }
 function toggleVBPanel(){
+  // Project view uses the project selector button — no filter panel needed
+  if(S.viewBy==='project'){
+    notify('Use the project selector (top bar) to filter by project','info');
+    return;
+  }
   const p=document.getElementById('vb-sel-panel');
   if(p.style.display==='none'||!p.style.display){
     p.style.display='block';
     let items;
-    if(S.viewBy==='project'){
-      items=PROJECTS.map(pr=>({id:pr.id,label:pr.name,col:pr.color}));
-    } else if(S.viewBy==='team'){
+    if(S.viewBy==='team'){
       items=TEAMS.map(t=>({id:t.id,label:t.name,col:t.color}));
     } else {
       items=RESOURCES.map(r=>({id:r.id,label:r.name,col:resTeamColor(r.id)}));
     }
-    p.innerHTML='<div style="padding:3px 8px;font-size:9px;color:var(--fg3);border-bottom:1px solid var(--bd);margin-bottom:3px">Select to show</div>'+items.map(i=>`
+    p.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px 4px;border-bottom:1px solid var(--bd);margin-bottom:3px"><span style="font-size:9px;color:var(--fg3)">Select to show</span><button onclick="deselectAllVB()" style="font-size:9px;padding:1px 7px;border-radius:4px;border:1px solid var(--bd2);background:var(--bg3);color:var(--fg2);cursor:pointer;font-family:var(--font)">✕ Deselect all</button></div>'+items.map(i=>`
       <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--fg1)">
-        <input type="checkbox" value="${i.id}" ${S.vbFilter.length===0||S.vbFilter.includes(i.id)?'checked':''} onchange="toggleVBF('${i.id}')" style="accent-color:var(--acc)">
+        <input type="checkbox" value="${i.id}" ${(S.vbFilter.length===0||S.vbFilter.includes(i.id))&&!S.vbFilter.includes('__none__')?'checked':''} onchange="toggleVBF('${i.id}',this.checked)" style="accent-color:var(--acc)">
         <span style="width:7px;height:7px;border-radius:2px;background:${i.col}"></span>${i.label}
       </label>`).join('');
   } else p.style.display='none';
 }
-function toggleVBF(id){
-  // vbFilter = explicit include list; empty = show all
-  // When first checkbox is unchecked we init with all IDs minus that one
-  if(!S.vbFilter.length){
-    // Was "show all" — now exclude this one: init with all except id
+function toggleVBF(id, checked){
+  // checked=true means user wants this item INCLUDED
+  S.vbFilter=S.vbFilter.filter(x=>x!=='__none__'); // strip sentinel
+  if(checked){
+    if(!S.vbFilter.includes(id)) S.vbFilter.push(id);
+    // If all items are now checked, reset to [] (show all = no explicit filter)
     let allItems;
-    if(S.viewBy==='resource') allItems=[...new Set(TASKS.flatMap(t=>[t.resId,...(t.coResIds||[])]).filter(Boolean))];
+    if(S.viewBy==='resource') allItems=[...new Set(RESOURCES.map(r=>r.id))];
     else if(S.viewBy==='team') allItems=TEAMS.map(t=>t.id);
     else allItems=PROJECTS.map(p=>p.id);
-    S.vbFilter=allItems.filter(x=>x!==id);
-  } else if(S.vbFilter.includes(id)){
-    S.vbFilter=S.vbFilter.filter(x=>x!==id);
-    // If all unchecked, reset to show all
-    if(!S.vbFilter.length) S.vbFilter=[];
+    if(allItems.every(x=>S.vbFilter.includes(x))) S.vbFilter=[];
   } else {
-    S.vbFilter.push(id);
+    // Unchecked: if was show-all, init with all except this one
+    if(!S.vbFilter.length){
+      let allItems2;
+      if(S.viewBy==='resource') allItems2=[...new Set(RESOURCES.map(r=>r.id))];
+      else if(S.viewBy==='team') allItems2=TEAMS.map(t=>t.id);
+      else allItems2=PROJECTS.map(p=>p.id);
+      S.vbFilter=allItems2.filter(x=>x!==id);
+    } else {
+      S.vbFilter=S.vbFilter.filter(x=>x!==id);
+    }
+    if(!S.vbFilter.length) S.vbFilter=['__none__'];
   }
   renderGantt();
 }
@@ -1593,7 +1615,9 @@ function visTasks(){
   let tasks=TASKS.filter(t=>{
     const isMsTask=msTaskIds.has(t.id);
     if(_msFilter && !isMsTask) return false;
-    // Tasks with past time logs always visible (as historical records)
+    // Active project filter
+    if(S._activeProjId && t.projId && t.projId!==S._activeProjId) return false;
+    // Tasks with past time logs always visible as historical records
     const hasPastLogs=(t.timeLogs||[]).some(l=>{ const di=dateToIdx(l.date); return di&&di<=_yst; });
     if(hasPastLogs) return true;
     if(!isMsTask){
@@ -1613,19 +1637,30 @@ function visTasks(){
 function buildGRows(tasks){
   const rows=[];
   if(S.viewBy==='project'){
-    let filtered=tasks;
-    if(S.vbFilter.length){
-      const selProjIds=new Set(S.vbFilter);
-      filtered=tasks.filter(t=>{
-        if(selProjIds.has(t.projId)) return true;
-        return false; // tasks without projId don't belong to any project
+    const _apId=S._activeProjId||null;
+    const _projIds=_apId?[_apId]:[...new Set(tasks.map(t=>t.projId).filter(Boolean))];
+    _projIds.forEach(pid=>{
+      const proj=PROJECTS.find(p=>p.id===pid);
+      const pt=tasks.filter(t=>t.projId===pid);
+      if(!pt.length) return;
+      rows.push({isGH:true,label:proj?.name||pid,color:proj?.color||'#7a8aaa',resId:null});
+      pt.forEach(t=>{
+        rows.push({t,tid:TASKS.indexOf(t),depth:0});
+        if(_showSubtasks)(t.subtasks||[]).filter(st=>st.name?.trim()).forEach(st=>rows.push({t,st,isSubtask:true,depth:1}));
       });
+    });
+    if(!_apId){
+      const noProj=tasks.filter(t=>!t.projId);
+      if(noProj.length){
+        rows.push({isGH:true,label:'No project',color:'#7a8aaa',resId:null});
+        noProj.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
+      }
     }
-    filtered.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
   } else if(S.viewBy==='resource'){
     // Collect all resource IDs that appear in any task (primary or co-resource)
     const allTaskResIds=new Set(tasks.flatMap(t=>[t.resId,...(t.coResIds||[])]).filter(Boolean));
-    const rIds=S.vbFilter.length ? S.vbFilter : [...allTaskResIds];
+    const _vbReal=S.vbFilter.filter(x=>x!=='__none__');
+    const rIds=_vbReal.length && !S.vbFilter.includes('__none__') ? _vbReal : S.vbFilter.includes('__none__') ? [] : [...allTaskResIds];
     rIds.forEach(rid=>{
       // Tasks where this resource is primary OR co-resource
       const rt=tasks.filter(t=>t.resId===rid||(t.coResIds||[]).includes(rid));
@@ -1633,12 +1668,16 @@ function buildGRows(tasks){
       const r=getRes(rid);
       rows.push({isGH:true,label:r?r.name:'?',color:resTeamColor(rid),resId:rid});
       // Pass viewResId so the bar knows which resource's hours to show
-      rt.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0,viewResId:rid}));
+      rt.forEach(t=>{
+        rows.push({t,tid:TASKS.indexOf(t),depth:0,viewResId:rid});
+        if(_showSubtasks)(t.subtasks||[]).filter(st=>st.name?.trim()).forEach(st=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
+      });
     });
     const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0));
     if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});noRes.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
   } else {
-    const tIds=S.vbFilter.length ? S.vbFilter : [...new Set(tasks.flatMap(t=>(t.teamIds&&t.teamIds.length)?t.teamIds:(t.teamId?[t.teamId]:[])).filter(Boolean))];
+    const _vbR2=S.vbFilter.filter(x=>x!=='__none__');
+    const tIds=S.vbFilter.includes('__none__') ? [] : _vbR2.length ? _vbR2 : [...new Set(tasks.flatMap(t=>(t.teamIds&&t.teamIds.length)?t.teamIds:(t.teamId?[t.teamId]:[])).filter(Boolean))];
     tIds.forEach(tid=>{
       const tm=getTeam(tid);
       // A task belongs to this team if:
@@ -1667,8 +1706,27 @@ function _reRenderCurrent(){
   else if(p==='resources') renderRes();
   else if(p==='teams') renderTeams();
 }
+// Hours a subtask packs on a specific day (greedy: fill cap, then next day)
+function _subHoursOnDay(s, t, day){
+  const resId=s.resId||t.resId;
+  const cap=getRes(resId)?.dailyCap||HPD;
+  const start=s.start||t.start||GANTT_TODAY;
+  let rem=s.hours||1, d=start;
+  while(d<=day&&rem>0.001){
+    if(!isNW(d,null,resId)){
+      const put=Math.min(rem,cap);
+      if(d===day) return put;
+      rem-=put;
+    }
+    d++;
+  }
+  return 0;
+}
+
 function renderGantt(){
   document.getElementById('sb-tc').textContent=TASKS.length;
+  {const _vm={project:'vb-pr',team:'vb-tm',resource:'vb-rs'};document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));const _ve=document.getElementById(_vm[S.viewBy]);if(_ve)_ve.classList.add('on');}
+  {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}
   buildTagPanel();
 
   // Hide/show edit controls based on permission
@@ -1767,7 +1825,7 @@ function renderGantt(){
     ${cols.map(c=>{
       let cls='th-d '+(c.today?'today':c.en?'en-h':c.nw?'nw-h':c.locked?'locked':'');
       const tip=`${c.dt.toDateString()}${c.nw?' (non-working — click to enable)':''}${c.en?' (enabled — click to revert)':''}${c.today?' TODAY':''}`;
-      const mHere=MILESTONES.filter(m=>m.dayIdx===c.idx);
+      const mHere=MILESTONES.filter(m=>m.dayIdx===c.idx&&(!S._activeProjId||!m.projId||m.projId===S._activeProjId));
       // Build header milestone: single dot or multi-colour pie dot
       const dayN=gDate(c.idx).getDate();
       const msInHeader=(()=>{
@@ -1813,6 +1871,86 @@ function renderGantt(){
   </tr></thead><tbody>`;
 
   rows.forEach((row,ri)=>{
+    // ── Subtask row ─────────────────────────────────────────
+    if(row.isSubtask){
+      const {t,st}=row;
+      const stRes=getRes(st.resId)||getRes(t.resId);
+      const stIsDone=st.status==='done';
+      const stCol=SCOLS[st.status]||'var(--fg3)';
+      // Use subtask deadline or fall back to parent task deadline
+      const stDlIdx=st.deadline?dateToIdx(st.deadline):(t.deadline?dateToIdx(t.deadline):null);
+      // Compute start and duration like a normal task
+      const stStart=st.start||t.start||GANTT_TODAY;
+      const stCap=getRes(st.resId||t.resId)?.dailyCap||HPD;
+      const stHours=st.hours||(t.hours/Math.max(1,(t.subtasks||[]).length));
+      // Compute duration respecting NW days
+      const stResId2=st.resId||t.resId;
+      let _stRem=stHours, _stD=stStart, _stWorkDays=0;
+      while(_stRem>0.001&&_stWorkDays<500){
+        if(!isNW(_stD,null,stResId2)){ _stRem-=stCap; _stWorkDays++; }
+        if(_stRem>0.001) _stD++;
+      }
+      const stDur=Math.max(1,_stD-stStart+1);
+      const stEnd=stStart+stDur-1;
+      const stBarColor=stRes&&stRes.teams?.length?(getTeam(stRes.teams[0])?.color||'#7a8aaa'):(t.teamId?getTeam(t.teamId)?.color||'#7a8aaa':'#7a8aaa');
+      const stOv=stDlIdx&&stEnd>stDlIdx&&!stIsDone;
+      const stTip=`${st.name} · ${stHours}h · ${stStart?sd(stStart)+' → '+sd(stEnd):'no dates'}`;
+      H+=`<tr style="opacity:${stIsDone?'.5':'1'}">
+        <td class="stn" style="padding:1px 6px;padding-left:22px;width:240px;max-width:240px;background:var(--bg1);border-top:1px solid rgba(37,47,69,.2)">
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="color:var(--fg3);font-size:8px;margin-right:1px;flex-shrink:0">⤷</span>
+            <button onclick="event.stopPropagation();window._cycleSubtaskStatus('${t.id}','${st.id}')"
+              title="${SLABELS[st.status]||st.status}"
+              style="flex-shrink:0;width:11px;height:11px;border-radius:50%;border:1.5px solid ${stCol};background:${stIsDone?stCol:'transparent'};cursor:pointer;padding:0"></button>
+            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:${stIsDone?'var(--fg3)':'var(--fg1)'};flex:1;min-width:0;${stIsDone?'text-decoration:line-through':''}" title="${st.name}">
+              ${st.name}
+            </div>
+          </div>
+        </td>
+        <td class="sto" style="width:36px;text-align:center;padding:0 2px;border-top:1px solid rgba(37,47,69,.2)">
+          ${stRes?`<div class="av av-sm ${stRes.avClass}" style="font-size:7px;width:18px;height:18px;line-height:18px" title="${stRes.name}">${stRes.initials}</div>`:''}
+        </td>
+        <td class="sth" style="width:34px;text-align:center;padding:0 1px;font-size:9px;font-family:var(--mono);color:var(--fg3);border-top:1px solid rgba(37,47,69,.2)">${stHours%1===0?stHours:stHours.toFixed(1)}h</td>`;
+      // Per-day bar cells — same logic as normal task bars
+      let stFirstBi=-1, stLastBi=-1;
+      cols.forEach((col,ci)=>{ if(col.idx>=stStart&&col.idx<=stEnd&&!isNW(col.idx,null,st.resId||t.resId)){if(stFirstBi<0)stFirstBi=ci;stLastBi=ci;} });
+      cols.forEach((col,ci)=>{
+        const day=col.idx;
+        const locked=isLocked(day);
+        const cellNW=isNW(day,null,st.resId||t.resId);
+        const isPdlDay2=pdl&&day===pdl;
+        const tcls=(col.today?'tdc':cellNW?'nwc':locked?'lkc':'')+(isPdlDay2?' pdl-col':'');
+        const pdlLine2=isPdlDay2?'<div class="pdl-line" style="z-index:9"></div>':'';
+        const isDlDay=stDlIdx&&day===stDlIdx;
+        const bdStyle='border-top:1px solid rgba(37,47,69,.2)';
+        if(day>=stStart&&day<=stEnd&&!cellNW){
+          // Has bar — greedy packing hours this day
+          const _stDayH=_subHoursOnDay(st,t,day);
+          const frac=Math.min(1,_stDayH/stCap);
+          const bh=Math.max(BAR_MIN,Math.round(BAR_MIN+frac*(BAR_MAX-BAR_MIN)));
+          const isOvDay=stDlIdx&&day>stDlIdx;
+          H+=`<td class="${tcls}" style="padding:1px;overflow:visible;vertical-align:middle;position:relative;${bdStyle}">
+            ${pdlLine2}${isDlDay?'<div class="dl-marker"></div>':''}
+            <div class="gb" style="background:${stIsDone?'rgba(34,197,94,.25)':locked?stBarColor+'44':stBarColor+'88'};height:${bh}px;width:100%;border-radius:3px;position:relative;cursor:${locked?'default':'grab'};opacity:.85;${stOv&&!stIsDone?'outline:1px solid rgba(220,38,38,.85);':''}"
+              title="${stTip}"
+              onmousedown="${locked?'':` bMD(event,'${t.id}__${st.id}',${stStart},${COL_W})`}"
+              onclick="if(!_mv)window._openSubtaskEditor('${t.id}','${st.id}')"
+              oncontextmenu="event.preventDefault();window._showSubCtx(event,'${t.id}','${st.id}')">
+              ${stIsDone?'<div class="gp" style="width:100%;z-index:2;position:relative"></div>':''}
+              ${ci===stFirstBi&&!locked?`<span class="gr gr-l" onmousedown="event.stopPropagation();stRMD(event,'${t.id}','${st.id}','l',${COL_W})"></span>`:''}
+              ${ci===stLastBi&&!locked?`<span class="gr gr-r" onmousedown="event.stopPropagation();stRMD(event,'${t.id}','${st.id}','r',${COL_W})"></span>`:''}
+            </div>
+          </td>`;
+        } else {
+          H+=`<td class="${tcls}" style="position:relative;${bdStyle}">
+            ${pdlLine2}${isDlDay?'<div class="dl-marker"></div>':''}
+          </td>`;
+        }
+      });
+      H+='</tr>';
+      return;
+    }
+    // ── Group header row ──────────────────────────────────────────
     if(row.isGH){
       const resId=row.resId||null; // will be set when viewBy=resource
       // Build day cells for group header
@@ -1892,7 +2030,7 @@ function renderGantt(){
           <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font-size:11px;color:${isDone?'var(--fg2)':'var(--fg0)'};flex:1;min-width:0" onclick="openEditTask('${t.id}')" title="${t.name}">
             ${inc?'<span style="color:var(--warn);font-size:9px;margin-right:2px" title="Incomplete">⚠</span>':''}
             ${isHold?`<span style="color:var(--warn);font-size:9px;margin-right:2px" title="${holdTip}">⏸</span>`:''}
-            ${t.name}
+            ${t.name}${(()=>{ const st=t.subtasks||[]; if(!st.length) return ''; const dn=st.filter(s=>s.done).length; return `<span style="font-size:8px;color:${dn===st.length?'var(--ok)':'var(--fg3)'};margin-left:5px;font-family:var(--mono)">☑${dn}/${st.length}</span>`; })()}
           </div>
         </div>
         <div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:1px;padding-left:18px">
@@ -1914,6 +2052,28 @@ function renderGantt(){
     const barCls=['gb',isOv?'overdue-bar':'',t.status==='hold'?'hold-bar':'',inc?'incomplete-bar':''].filter(Boolean).join(' ');
     let firstBarCi=-1,lastBarCi=-1;
     cols.forEach((c,ci)=>{ if((sched[c.idx]||0)>0.001){if(firstBarCi<0)firstBarCi=ci;lastBarCi=ci;} });
+
+    // Subtask outline: span from earliest subtask start to latest subtask end
+    const _stArr=(t.subtasks||[]).filter(s=>s.name?.trim());
+    let _stOutlineFirst=-1,_stOutlineLast=-1;
+    if(_stArr.length&&_showSubtasks){
+      let stMin=Infinity, stMax=-Infinity;
+      _stArr.forEach(s=>{
+        const _sd2=s.dur||Math.max(1,Math.ceil((s.hours||1)/(getRes(s.resId||t.resId)?.dailyCap||HPD)));
+        stMin=Math.min(stMin,s.start);
+        stMax=Math.max(stMax,s.start+_sd2-1);
+      });
+      // Outline covers full range: from min(task_start, subtask_min) to max(task_end, subtask_max)
+      // Only draw OUTSIDE the task's own bar
+      const _outlineMin=Math.min(stMin,firstSchedDay);
+      const _outlineMax=Math.max(stMax,lastSchedDay);
+      if(stMin<firstSchedDay||stMax>lastSchedDay){ // only if subtasks extend beyond task
+        cols.forEach((col2,ci2)=>{
+          if(col2.idx>=_outlineMin&&_stOutlineFirst<0) _stOutlineFirst=ci2;
+          if(col2.idx<=_outlineMax) _stOutlineLast=ci2;
+        });
+      }
+    }
 
     // Dependency end day — the last day the dependency occupies (task ends here or resource until date)
     let depDay=null;
@@ -1937,7 +2097,7 @@ function renderGantt(){
       const isDepCol=depDay&&day===depDay;
       const dayHours=sched[day]||0;
       const markers=(isDlCol?'<div class="dl-marker"></div>':'')+(isDepCol?'<div class="dep-marker"></div>':'');
-      const taskMsArr=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx===day);
+      const taskMsArr=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx===day&&(!S._activeProjId||!m.projId||m.projId===S._activeProjId));
       const _msc=taskMsArr.length>0?(taskMsArr[0].color||'var(--acc2)'):'';
             // Line via background-image (hover uses background-color so this survives)
       // Milestone: injected inside bar div (position:relative), works in all browsers
@@ -1951,14 +2111,19 @@ function renderGantt(){
       // td must have position:relative for inset:0 to work
       const taskMsLine=''; const taskMsDot='';
 
+      // Compute sub visibility OUTSIDE if-block so all branches can use it
+      const _activeSubs4Day=!_showSubtasks?_stArr.filter(s=>{if(isNW(day,null,s.resId||t.resId))return false;const _ss5=s.start||t.start||GANTT_TODAY;const _dd5=s.dur||Math.max(1,Math.ceil((s.hours||1)/(getRes(s.resId||t.resId)?.dailyCap||HPD)));return day>=_ss5&&day<_ss5+_dd5&&_subHoursOnDay(s,t,day)>0.001;}):[];
+      const _hasSubsHere=_activeSubs4Day.length>0;
+
       const _dayActive=_isDayActiveForTask(t,day);
       if(dayHours>0.001 && _dayActive){
         const frac=Math.min(1,dayHours/cap);
-        const bh=Math.max(BAR_MIN,Math.round(BAR_MIN+frac*(BAR_MAX-BAR_MIN)));
-        const isFirst=ci===firstBarCi, isLast=ci===lastBarCi;
+        const _bhRaw=Math.max(BAR_MIN,Math.round(BAR_MIN+frac*(BAR_MAX-BAR_MIN)));
+        const bh=_bhRaw;
+                const isFirst=ci===firstBarCi, isLast=ci===lastBarCi;
         const segLk=isSegLocked(t.id,day);
         const tipText=`${t.name} · ${dayHours%1===0?dayHours:dayHours.toFixed(1)}h today (${th}h total)${t.deadline?' · DL:'+t.deadline:''}`;
-        H+=`<td style="padding:1px;overflow:visible;vertical-align:middle;position:relative" class="${tcls}"
+        H+=`<td style="padding:1px 0 0;overflow:visible;vertical-align:top;position:relative" class="${tcls}"
           onmouseover="if(_mv)highlightDrop(this)" onmouseout="clearHL(this)">
           ${pdlOverlay}${markers}
           ${taskMsOverlay}
@@ -1972,8 +2137,20 @@ function renderGantt(){
             ${isFirst&&canEdit?`<span class="gr gr-l" onmousedown="rMD(event,'${t.id}','l',${COL_W})"></span>`:''}
             ${isLast&&canEdit?`<span class="gr gr-r" onmousedown="rMD(event,'${t.id}','r',${COL_W})"></span>`:''}
           </div>
+          ${_hasSubsHere?(()=>{
+            return _activeSubs4Day.map(s=>{
+              const _scp=getRes(s.resId||t.resId)?.dailyCap||HPD;
+              const _sdp=s.dur||Math.max(1,Math.ceil((s.hours||1)/_scp));
+              const _sfp=Math.min(1,_subHoursOnDay(s,t,day)/_scp);
+              const _shp=Math.max(BAR_MIN,Math.round(BAR_MIN+_sfp*(BAR_MAX-BAR_MIN)));
+              const _dlp=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
+              const _ovp=_dlp&&day>_dlp;
+              return '<div style="height:'+_shp+'px;width:100%;border-radius:3px;margin-top:1px;background:'+barColor+'88;'+(_ovp?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
+            }).join('');
+          })():''}
         </td>`;
       } else if(day>=firstSchedDay&&day<=lastSchedDay){
+        // Check if this day is in the subtask outline range but outside the filled bar
         H+=`<td class="nwc${isPdl?' pdl-col':''}" style="position:relative">${pdlOverlay}${markers}</td>`;
       } else if(!_dayActive && day>=t.start && day<=(t.start+(t.dur||1)-1)){
         // Inactive weekday for daily task — dim cell with subtle indicator
@@ -1982,10 +2159,28 @@ function renderGantt(){
         ${markers}</td>`;
       } else {
         const holdStyle=isHold?'hold-stripe':'';
-        H+=`<td class="${tcls} ${holdStyle}" style="cursor:${canEdit?'pointer':'default'};position:relative"
+        const _miniSt=!_showSubtasks?(()=>{
+          const _aS=_stArr.filter(s=>{
+            if(isNW(day,null,s.resId||t.resId)) return false;
+            const _ss=s.start||t.start||GANTT_TODAY;
+            const _dd=s.dur||Math.max(1,Math.ceil((s.hours||1)/(getRes(s.resId||t.resId)?.dailyCap||HPD)));
+            return day>=_ss&&day<_ss+_dd;
+          });
+          if(!_aS.length) return '';
+          return _aS.map(s=>{
+            const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;
+            const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));
+            const _sf=Math.min(1,(s.hours||1)/(_sd*_sc));
+            const _sh=Math.max(BAR_MIN,Math.round(BAR_MIN+_sf*(BAR_MAX-BAR_MIN)));
+            const _dl=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
+            const _ov=_dl&&day>_dl;
+            return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+barColor+'88;'+(_ov?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
+          }).join('');
+        })():'';
+        H+=`<td class="${tcls} ${holdStyle}" style="cursor:${canEdit?'pointer':'default'};position:relative;overflow:visible;vertical-align:top;padding:1px 0 0"
           onmouseover="if(_mv)highlightDrop(this)" onmouseout="clearHL(this)"
           oncontextmenu="${canEdit?`dayCellCtx(event,${day},'${t.id}')`:''}">
-          ${pdlOverlay}${markers}${taskMsOverlay}
+          ${pdlOverlay}${markers}${taskMsOverlay}${_miniSt}
         </td>`;
       }
     }
@@ -1995,6 +2190,22 @@ function renderGantt(){
   H+='</tbody></table></div>';
   document.getElementById('gw').innerHTML=H;
   renderLog();
+}
+
+// ── Permission helpers ────────────────────────────────────────
+function isPM(){
+  if(!S_USER) return false;
+  return S_USER.isAdmin || (S_USER.teams||[]).includes('projMgmt');
+}
+function isTeamLeader(){
+  if(!S_USER) return false;
+  return TEAMS.some(t=>t.leaderId===S_USER.resId);
+}
+function getMyTeamResources(){
+  if(!S_USER) return [];
+  return RESOURCES.filter(r=>(r.teams||[]).some(tid=>
+    TEAMS.find(t=>t.id===tid&&t.leaderId===S_USER.resId)
+  )).map(r=>r.id);
 }
 
 // ── GLOBAL day header click ──────────────────────────────────
@@ -2352,8 +2563,14 @@ window.bMD=(e,taskId,startDay,colW)=>{
   if(e.button!==0||_rz) return;
   if(e.target.classList.contains('gr')) return;
   e.preventDefault();e.stopPropagation();
-  const t=TASKS.find(x=>x.id===taskId);
-  _mv={taskId, origStart:t?.start||startDay, startX:e.clientX, colW};
+  // Support subtask format: 'parentId__stId'
+  let stId=null;
+  let realTaskId=taskId;
+  if(taskId.includes('__')){ const p=taskId.split('__'); realTaskId=p[0]; stId=p[1]; }
+  const t=TASKS.find(x=>x.id===realTaskId);
+  const _stObj=stId?(t?.subtasks||[]).find(s=>s.id===stId):null;
+  const _mvStart=_stObj?(_stObj.start||t?.start||startDay):(t?.start||startDay);
+  _mv={taskId:realTaskId, stId, origStart:_mvStart, startX:e.clientX, colW};
   _dragPreview=new Map();
   document.body.style.cursor='grabbing';
   document.body.style.userSelect='none';
@@ -2361,7 +2578,7 @@ window.bMD=(e,taskId,startDay,colW)=>{
 
 function finishMove(upX){
   if(!_mv) return;
-  const {taskId, origStart, startX, colW}=_mv;
+  const {taskId, stId:_stId, origStart, startX, colW}=_mv;
   _dragPreview=new Map();
   applyDragHighlights(null);
   _mv=null;
@@ -2379,6 +2596,22 @@ function finishMove(upX){
   }
   const t=TASKS.find(x=>x.id===taskId);
   if(!t) return;
+
+  // ── SUBTASK MOVE ─────────────────────────────────────────────
+  if(_stId){
+    const st=(t.subtasks||[]).find(s=>s.id===_stId);
+    if(!st) return;
+    const oldSt=st.start;
+    st.start=newStart;
+    const stCap=getRes(st.resId||t.resId)?.dailyCap||HPD;
+    const stH=st.hours||(t.hours/Math.max(1,(t.subtasks||[]).length));
+    st.dur=Math.max(1,Math.ceil(stH/stCap));
+    addLog({type:'move',task:`${t.name} › ${st.name}`,from:oldSt?sd(oldSt):'—',to:sd(newStart)});
+    notify(`"${st.name}" → ${sd(newStart)}`,'success');
+    persistState(['tasks'],{tasks:[t.id]});
+    renderGantt();
+    return;
+  }
 
   // Dependency check
   const depErr = checkDepConstraint(t, newStart);
@@ -2512,7 +2745,19 @@ window.rMD=(e,taskId,edge,colW)=>{
 };
 function rzMove(e){
   if(!_rz) return;
-  const {taskId,edge,colW,startX,origStart,origDur,origHours}=_rz;
+  const {taskId,stId,edge,colW,startX,origStart,origDur,origHours}=_rz;
+  // For subtask resize, do a simple preview update
+  if(stId){
+    const t2=TASKS.find(x=>x.id===taskId);
+    const st2=(t2?.subtasks||[]).find(s=>s.id===stId);
+    if(st2){
+      const delta2=Math.round((e.clientX-startX)/colW);
+      const stCap2=getRes(st2.resId||t2.resId)?.dailyCap||HPD;
+      if(edge==='r'){ st2.dur=Math.max(1,origDur+delta2); st2.hours=Math.round(st2.dur*stCap2*10)/10; }
+      else { const ns=origStart+delta2; if(ns<origStart+origDur) { st2.start=Math.max(GANTT_TODAY,ns); st2.dur=Math.max(1,origDur-delta2); } }
+    }
+    return;
+  }
   const t=TASKS.find(x=>x.id===taskId);
   if(!t) return;
   const d=Math.round((e.clientX-startX)/colW);
@@ -2534,16 +2779,26 @@ function rzMove(e){
 }
 function rzEnd(){
   if(!_rz) return;
-  const {taskId, edge}=_rz;
+  const {taskId, stId, edge}=_rz;
   const t=TASKS.find(x=>x.id===taskId);
+  
+  // ── SUBTASK RESIZE END ────────────────────────────────────────
+  if(stId){
+    const st=(t?.subtasks||[]).find(s=>s.id===stId);
+    if(st){
+      addLog({type:'resize',task:`${t.name} › ${st.name}`,from:'',to:`${st.start?sd(st.start):'—'}, ${st.dur||1}d, ${st.hours||0}h`});
+      persistState(['tasks'],{tasks:[taskId]});
+    }
+    _rz=null; document.body.style.cursor=''; document.body.style.userSelect='';
+    renderGantt();
+    return;
+  }
+
   if(t){
-    // After right-edge resize: recompute dur from hours packing
-    // (duration may shrink or grow depending on what other tasks fill the days)
     if(edge==='r' && t.resId && t.timeMode!=='daily'){
       const packed = packHoursFromDay(tHours(t), t.start, t.resId, t.id);
       t.dur = packed.dur;
     }
-    // Auto-split if NW days now fall in the middle
     if(!t.segments){ if(checkSpanForNW(t)){ autoSplitTask(t); if(t.segments) t._autoSplit=true; } }
     addLog({type:'resize', task:t.name, from:'', to:`${sd(t.start)}, ${tDur(t)}d, ${tHours(t)}h`});
     cascadeDependents(taskId, new Set([taskId]));
@@ -2577,6 +2832,7 @@ window.ctxStat=(s)=>{
   const t=TASKS.find(x=>x.id===S.ctxId);
   if(!t) return;
   if(s==='hold'){ _showHoldDialog(S.ctxId); return; }
+  if(s==='doing'){ tpStart(S.ctxId); return; } // doing = timer only
   if(s==='done'&&taskHasMilestone(t.id)){
     s='ready';
     notify(`"${t.name}" → Ready for Milestone`,'success');
@@ -2787,6 +3043,8 @@ function openAddTask(){
   document.getElementById('mt-h').textContent='New Task';
   // Clear milestone display for new task
   const _mtMs=document.getElementById('mt-ms-list'); if(_mtMs) _mtMs.innerHTML='<span style="font-size:10px;color:var(--fg3)">Save task first to associate milestones</span>';
+  _loadSubtasksIntoModal([]);
+  _updateTotalWithSubs();
   const _ps=document.getElementById('mt-proj');
   if(_ps){
     _ps.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
@@ -2812,6 +3070,8 @@ function openAddTask(){
   _taskTeams=[];
   renderTeamResList();
   // Show associated milestones with add button
+  _loadSubtasksIntoModal(t.subtasks);
+  _updateTotalWithSubs();
   window._updateTaskMilestones();
   OM('m-task');
 }
@@ -2908,6 +3168,17 @@ window.saveTask=()=>{
     notes:document.getElementById('mt-notes').value,
     depType, depId, depResId, depUntil, depNote,
     holdBlockerId:holdResId, holdBlocker,
+    subtasks:(()=>{
+      // Preserve existing subtasks if modal subtask list is empty (user didn't edit subs)
+      const _stNew=_curSubtasks.filter(st=>st.name?.trim()).map(st=>({...st,name:st.name.trim()}));
+      if(!_stNew.length && S.editId){
+        const _stExist=TASKS.find(x=>x.id===S.editId)?.subtasks;
+        if(_stExist&&_stExist.length) return _stExist;
+      }
+      return _stNew;
+    })(),
+    // Auto-update progress from subtasks if any exist
+    prog:(()=>{ const sts=_curSubtasks.filter(st=>st.name.trim()); if(!sts.length) return parseInt(document.getElementById('mt-p').value)||0; return Math.round(sts.filter(st=>st.done).length/sts.length*100); })(),
   };
   if(S.editId){
     const t=TASKS.find(x=>x.id===S.editId);
@@ -2965,31 +3236,47 @@ window.saveTask=()=>{
     if((t.depId||'')!==(data.depId||'')) diffs.push(`depends on: ${t.depId?TASKS.find(x=>x.id===t.depId)?.name||t.depId:'none'} → ${data.depId?TASKS.find(x=>x.id===data.depId)?.name||data.depId:'none'}`);
     // Hold blocker
     if((t.holdBlocker||'')!==(data.holdBlocker||'')) diffs.push(`hold reason: "${_dn(data.holdBlocker)}"`);
+    // Subtasks
+    const _ost=t.subtasks||[]; const _nst=data.subtasks||[];
+    const _addedSt=_nst.filter(n=>!_ost.find(o=>o.id===n.id)).map(n=>n.name);
+    const _removedSt=_ost.filter(o=>!_nst.find(n=>n.id===o.id)).map(o=>o.name);
+    const _doneSt=_nst.filter(n=>n.done&&!(_ost.find(o=>o.id===n.id)?.done)).map(n=>n.name);
+    const _undoneSt=_nst.filter(n=>!n.done&&(_ost.find(o=>o.id===n.id)?.done)).map(n=>n.name);
+    if(_addedSt.length) diffs.push(`subtask added: ${_addedSt.join(', ')}`);
+    if(_removedSt.length) diffs.push(`subtask removed: ${_removedSt.join(', ')}`);
+    if(_doneSt.length) diffs.push(`subtask done: ${_doneSt.join(', ')}`);
+    if(_undoneSt.length) diffs.push(`subtask reopened: ${_undoneSt.join(', ')}`);
     // Team
     if((t.teamId||'')!==(data.teamId||'')) diffs.push(`team: ${_tn(t.teamId)} → ${_tn(data.teamId)}`);
     Object.assign(t,data);
+    persistState(['tasks'],{tasks:[t.id]}); // immediate targeted save
     addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
     notify('Task saved','success');
   } else {
     const newId='t'+Date.now();
     const res=getRes(data.resId);
     TASKS.push({id:newId,timeLogs:[],subtasks:[],segments:null,...data});
+    persistState(['tasks'],{tasks:[newId]}); // save new task immediately
     addLog({type:'create',task:name,from:'',to:`created${data.projId?' in '+PROJECTS.find(p=>p.id===data.projId)?.name:''}${res?' for '+res.name:''}${data.hours?' · '+data.hours+'h':''}`});
     notify(`"${name}" created`,'success');
   }
   CM('m-task');
   buildTagPanel();
   renderGantt();renderDash();
-  persistState(['tasks']);
+  // persistState already called inline above with specific task ID
 };
 window.delEditTask=()=>{
   if(!S.editId) return;
   const _dt=TASKS.find(x=>x.id===S.editId);
+  const _delId=S.editId;
   addLog({type:'delete',task:_dt?.name||S.editId,from:'',to:`task deleted (was ${SLABELS[_dt?.status]||_dt?.status||'unknown'}, ${_dt?.hours||0}h, ${_dt?.resId?getRes(_dt.resId)?.name||_dt.resId:'unassigned'})`});
-  TASKS=TASKS.filter(t=>t.id!==S.editId);
+  TASKS=TASKS.filter(t=>t.id!==_delId);
   CM('m-task');notify('Deleted','warn');
   renderGantt();renderDash();
-  persistState(['tasks']);
+  // For deletes, send null for that key to remove from Firebase
+  const _delPatch={}; _delPatch[_delId]=null;
+  fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_delPatch)}).catch(()=>{});
+  persistState(['meta']); // just update meta, task delete is immediate above
 };
 
 // ============================================================
@@ -3015,11 +3302,11 @@ window.saveLog=()=>{
   if(h<=0){notify('Hours > 0 required','warn');return;}
   t.timeLogs=t.timeLogs||[];
   t.timeLogs.push({date:document.getElementById('ml-date').value,hours:h,notes:document.getElementById('ml-notes').value,user:'Pedro Pereira'});
-  if(t.status==='todo') t.status='doing';
+  if(t.status==='todo') t.status='paused'; // manual log = work done, task is paused (not actively timing)
   addLog({type:'timelog',task:t.name,from:'',to:`${_fmtHours(h)} logged on ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}`});
   notify(`${h}h logged on "${t.name}"`,'success');
   CM('m-log');renderGantt();renderDash();
-  persistState(['tasks']);
+  persistState(['tasks'],{tasks:[taskId]});
 };
 
 // ============================================================
@@ -3282,7 +3569,7 @@ window.adminToggleAdminUI=async(resId)=>{
   renderRes();
 };
 function toggleResTeam(i,teamId,checked){
-  if(!isAdmin()){notify('Apenas admins podem editar equipas de recursos','warn');return;}
+  if(!isAdmin()){notify('Only admins can edit resource teams','warn');return;}
   if(!RESOURCES[i].teams) RESOURCES[i].teams=[];
   if(checked){ if(!RESOURCES[i].teams.includes(teamId)) RESOURCES[i].teams.push(teamId); }
   else RESOURCES[i].teams=RESOURCES[i].teams.filter(x=>x!==teamId);
@@ -3291,13 +3578,13 @@ function toggleResTeam(i,teamId,checked){
   persistState(['resources']);
 }
 window.addRes=()=>{
-  if(!isAdmin()){notify('Apenas admins podem adicionar recursos','warn');return;}
+  if(!isAdmin()){notify('Only admins can add resources','warn');return;}
   RESOURCES.push({id:'r'+Date.now(),name:'New Resource',initials:'NR',avClass:'av-b',teams:[],role:'',dailyCap:8});
   addLog({type:'resource',task:'New Resource',from:'',to:'created'});
   persistState(['resources']); renderRes();
 };
 window.delRes=(id)=>{
-  if(!isAdmin()){notify('Apenas admins podem eliminar recursos','warn');return;}
+  if(!isAdmin()){notify('Only admins can delete resources','warn');return;}
   if(!confirm('Delete resource?')) return;
   const _dr=getRes(id);
   addLog({type:'resource',task:_dr?.name||id,from:'',to:'deleted'});
@@ -3423,12 +3710,12 @@ function renderTeams(){
   if(addBtn) addBtn.style.display=isAdmin()?'':'none';
 }
 window.addTeam=()=>{
-  if(!isAdmin()){notify('Apenas admins podem adicionar equipas','warn');return;}
+  if(!isAdmin()){notify('Only admins can add teams','warn');return;}
   TEAMS.push({id:'tm'+Date.now(),name:'New Team',color:'#7a8aaa',desc:'',leaderId:null});
   persistState(['teams']); renderTeams();
 };
 window.delTeam=(id)=>{
-  if(!isAdmin()){notify('Apenas admins podem eliminar equipas','warn');return;}
+  if(!isAdmin()){notify('Only admins can delete teams','warn');return;}
   if(!confirm('Delete team?')) return;
   TEAMS=TEAMS.filter(t=>t.id!==id);
   persistState(['teams']); renderTeams();
@@ -3449,89 +3736,200 @@ window.moveTaskOrder=(taskId, dir)=>{
 // ============================================================
 // AUTO-SCHEDULE
 // ============================================================
-window.autoSchedule=()=>{
-  if(!confirm('Auto-schedule: tasks packed from today by hours, filling daily capacity in order.\n\nContinue?')) return;
 
-  const byRes={};
-  TASKS.forEach(t=>{
-    if(t.status==='done'||t.status==='cancelled'||!t.resId) return;
-    if(t.timeMode==='daily') return; // daily rate tasks are not auto-scheduled
-    if(!byRes[t.resId]) byRes[t.resId]=[];
-    byRes[t.resId].push(t);
+window.showAutoMenu=(e)=>{
+  e.preventDefault(); e.stopPropagation();
+  const old=document.getElementById('_asmenu'); if(old) old.remove();
+  const m=document.createElement('div');
+  m.id='_asmenu';
+  m.style.cssText='position:fixed;z-index:600;background:var(--bg2);border:1px solid var(--bd2);border-radius:10px;padding:5px;box-shadow:0 4px 20px rgba(0,0,0,.5);min-width:200px;font-family:var(--font)';
+  m.style.left=Math.min(e.clientX,window.innerWidth-210)+'px';
+  m.style.top=Math.min(e.clientY+4,window.innerHeight-300)+'px';
+  const projLabel=S._activeProjId?(PROJECTS.find(p=>p.id===S._activeProjId)?.name||'active project'):'all projects';
+  const item=(label,fn,bold)=>{
+    const d=document.createElement('div');
+    d.textContent=label;
+    d.style.cssText='padding:7px 12px;font-size:11px;cursor:pointer;border-radius:6px;color:var(--fg0);'+(bold?'font-weight:600;':'');
+    d.onmouseover=()=>d.style.background='var(--bg3)';
+    d.onmouseout=()=>d.style.background='';
+    d.onclick=()=>{m.remove();fn();};
+    return d;
+  };
+  const sep=(label)=>{
+    const d=document.createElement('div');
+    d.textContent=label;
+    d.style.cssText='font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--fg3);padding:7px 12px 3px';
+    return d;
+  };
+  m.appendChild(item('⚡ All ('+projLabel+')',()=>autoSchedule(),true));
+  // By resource (permissions apply)
+  const allowedRes=RESOURCES.filter(r=>{
+    if(isPM()) return true;
+    if(isTeamLeader()) return [S_USER?.resId,...getMyTeamResources()].includes(r.id);
+    return r.id===S_USER?.resId;
   });
+  if(allowedRes.length){
+    m.appendChild(sep('By resource'));
+    allowedRes.forEach(r=>m.appendChild(item('  '+r.name,()=>autoScheduleFor({resIds:[r.id]}))));
+  }
+  // By team (TL+ only)
+  if(isPM()||isTeamLeader()){
+    const allowedTeams=TEAMS.filter(tm=>{
+      if(isPM()) return true;
+      return tm.leaderId===S_USER?.resId;
+    });
+    if(allowedTeams.length){
+      m.appendChild(sep('By team'));
+      allowedTeams.forEach(tm=>m.appendChild(item('  '+tm.name,()=>autoScheduleFor({teamIds:[tm.id]}))));
+    }
+  }
+  document.body.appendChild(m);
+  const close=()=>{m.remove();document.removeEventListener('click',close,true);};
+  setTimeout(()=>document.addEventListener('click',close,true),50);
+};
 
-  let moved=0;
-  Object.entries(byRes).forEach(([resId,tasks])=>{
-    tasks.sort((a,b)=>(a.start||99999)-(b.start||99999));
+window.autoScheduleFor=(opts={})=>{
+  const {resIds,teamIds}=opts;
+  const targetRes=new Set();
+  (resIds||[]).forEach(id=>targetRes.add(id));
+  (teamIds||[]).forEach(tid=>RESOURCES.filter(r=>(r.teams||[]).includes(tid)).forEach(r=>targetRes.add(r.id)));
+  if(!targetRes.size){notify('No resources found','warn');return;}
+  const label=[...(resIds||[]).map(id=>getRes(id)?.name||id),...(teamIds||[]).map(id=>getTeam(id)?.name||id)].join(', ');
+  if(!confirm('Auto-schedule for: '+label+'?\n\nThis will reschedule their tasks. Continue?')) return;
+  const _asProjId=S._activeProjId||null;
+  const _asTasks2=TASKS.filter(t=>!_asProjId||!t.projId||t.projId===_asProjId);
+  let moved=0; const _movedIds=[];
+  targetRes.forEach(resId=>{
     const cap=getRes(resId)?.dailyCap||HPD;
-    const dayAlloc={}; // tracks hours placed per day in this pass
-
-    // Pre-seed with daily-rate tasks (they are not moved but consume capacity)
-    TASKS.forEach(dt=>{
+    const dayAlloc={};
+    const scheduleFrom=GANTT_TODAY;
+    _asTasks2.forEach(dt=>{
       if(dt.resId!==resId||dt.timeMode!=='daily'||!dt.start) return;
-      if(dt.status==='done'||dt.status==='cancelled') return;
-      const hpd=dt.hpd||HPD;
-      let d=nextWorkDay(dt.start), placed=0;
-      while(placed<dt.dur && d<dt.start+dt.dur+30){
-        if(!isNW(d,dt.id,resId)){ dayAlloc[d]=(dayAlloc[d]||0)+hpd; placed++; }
+      let d=dt.start,placed=0;
+      while(placed<(dt.dur||1)&&d<dt.start+(dt.dur||1)+30){
+        if(!isNW(d,dt.id,resId)){dayAlloc[d]=(dayAlloc[d]||0)+(dt.hpd||HPD);placed++;}
         d++;
       }
     });
+    const _items2=[];
+    _asTasks2.forEach(t=>{
+      if(t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='doing'&&t.timeMode!=='daily')
+        _items2.push({isSub:false,t,hours:tHours(t),origStart:t.start||scheduleFrom});
+      (t.subtasks||[]).forEach(st=>{
+        if((st.resId||t.resId)===resId&&st.name?.trim()&&(st.hours>0)&&st.status!=='done')
+          _items2.push({isSub:true,t,st,hours:st.hours,origStart:st.start||scheduleFrom});
+      });
+    });
+    _items2.sort((a,b)=>(a.origStart||99999)-(b.origStart||99999));
+    _items2.forEach(item=>{
+      let rem=item.hours,day=Math.max(scheduleFrom,item.origStart||scheduleFrom),startDay=null,endDay=null,iters=0;
+      while(!startDay&&isNW(day,null,resId)&&iters++<30) day++;
+      iters=0;
+      while(rem>0.001&&iters++<500){
+        if(isNW(day,item.isSub?null:item.t.id,resId)){day++;continue;}
+        const avail=Math.max(0,cap-(dayAlloc[day]||0));
+        if(avail>0.001){if(startDay===null)startDay=day;const put=Math.min(rem,avail);dayAlloc[day]=(dayAlloc[day]||0)+put;rem-=put;endDay=day;}
+        if(rem>0.001) day++;
+      }
+      const ns=startDay||item.origStart||scheduleFrom;
+      const nd=Math.max(1,(endDay||ns)-ns+1);
+      if(item.isSub){if(ns!==item.st.start){item.st.start=ns;item.st.dur=nd;moved++;_movedIds.push(item.t.id);}}
+      else{if(ns!==item.t.start||nd!==item.t.dur){addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});item.t.start=ns;item.t.dur=nd;moved++;_movedIds.push(item.t.id);}}
+    });
+  });
+  notify('Auto-schedule ('+label+'): '+moved+' task'+(moved!==1?'s':'')+' rescheduled','success');
+  persistState(['tasks'],{tasks:[...new Set(_movedIds)]});
+  renderGantt(); renderDash();
+};
+
+window.autoSchedule=()=>{
+  if(!confirm('Auto-schedule: pack tasks from today by hours, filling daily capacity in order.\n\nContinue?')) return;
+
+  // Collect resources from active project (or all if no project selected)
+  const _asProjId=S._activeProjId||null;
+  const _asTasks=TASKS.filter(t=>!_asProjId||!t.projId||t.projId===_asProjId);
+  const allResIds=new Set();
+  _asTasks.forEach(t=>{
+    if(t.resId) allResIds.add(t.resId);
+    (t.subtasks||[]).forEach(st=>{ if(st.resId) allResIds.add(st.resId); });
+  });
+
+  let moved=0; const _movedIds=[];
+  allResIds.forEach(resId=>{
+    const cap=getRes(resId)?.dailyCap||HPD;
+    const dayAlloc={};
     const projStart=PROJECTS[0]?.start?dateToIdx(PROJECTS[0].start):GANTT_TODAY;
     const scheduleFrom=Math.max(GANTT_TODAY, projStart||GANTT_TODAY);
-    let cursor=nextWorkDay(scheduleFrom); // start from today minimum
 
-    tasks.forEach(t=>{
-      // "doing" tasks keep their start day — only pack from today
-      if(t.status==='doing'&&t.start&&t.start<=GANTT_TODAY){
-        // Pre-fill dayAlloc for already-started portion
-        const hours=tHours(t);
-        const cap2=getRes(resId)?.dailyCap||HPD;
-        let remaining=hours, d=t.start;
-        while(remaining>0.001&&d<t.start+t.dur+1){
-          if(!isNW(d,t.id,resId)){ const put=Math.min(remaining,cap2); dayAlloc[d]=(dayAlloc[d]||0)+put; remaining-=put; }
-          d++;
-        }
-        return;
+    // Pre-seed daily-rate tasks (respect active project filter)
+    _asTasks.forEach(dt=>{
+      if(dt.resId!==resId||dt.timeMode!=='daily'||!dt.start) return;
+      if(dt.status==='done'||dt.status==='cancelled') return;
+      let d=dt.start, placed=0;
+      while(placed<(dt.dur||1)&&d<dt.start+(dt.dur||1)+30){
+        if(!isNW(d,dt.id,resId)){ dayAlloc[d]=(dayAlloc[d]||0)+(dt.hpd||HPD); placed++; } d++;
       }
-      const hours=tHours(t);
-      let remaining=hours;
-      // todo tasks: never schedule in the past
-      let day=Math.max(cursor, t.status==='todo'?GANTT_TODAY:cursor);
-      if(isNW(day,t.id,resId)) day=nextWorkDay(day);
-      let startDay=null, endDay=null;
-      let iters=0;
+    });
 
+    // Pre-seed doing tasks (locked in place)
+    TASKS.forEach(t=>{
+      if(t.resId!==resId||t.status!=='doing'||!t.start) return;
+      let rem=tHours(t), d=t.start;
+      while(rem>0.001&&d<t.start+(t.dur||1)+1){
+        if(!isNW(d,t.id,resId)){ const put=Math.min(rem,cap); dayAlloc[d]=(dayAlloc[d]||0)+put; rem-=put; } d++;
+      }
+    });
+
+    // Build combined list: tasks + subtasks sorted by original start
+    const _items=[];
+    _asTasks.forEach(t=>{
+      // Normal tasks for this resource
+      if(t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='doing'&&t.timeMode!=='daily'){
+        _items.push({isSub:false, t, hours:tHours(t), origStart:t.start||scheduleFrom});
+      }
+      // Subtasks for this resource
+      (t.subtasks||[]).forEach(st=>{
+        const stRes=st.resId||t.resId;
+        if(stRes!==resId||!st.name?.trim()||!(st.hours>0)) return;
+        if(st.status==='done'||st.status==='cancelled') return;
+        _items.push({isSub:true, t, st, hours:st.hours, origStart:st.start||scheduleFrom});
+      });
+    });
+    _items.sort((a,b)=>(a.origStart||99999)-(b.origStart||99999));
+
+    _items.forEach(item=>{
+      let remaining=item.hours;
+      let day=Math.max(scheduleFrom, item.origStart);
+      if(isNW(day,item.isSub?null:item.t.id,resId)) day=nextWorkDay(day);
+      let startDay=null, endDay=null, iters=0;
       while(remaining>0.001&&iters++<500){
-        if(isNW(day,t.id,resId)){day++;continue;}
-        const used=dayAlloc[day]||0;
-        const avail=Math.max(0,cap-used);
+        if(isNW(day,item.isSub?null:item.t.id,resId)){day++;continue;}
+        const avail=Math.max(0,cap-(dayAlloc[day]||0));
         if(avail>0.001){
           if(startDay===null) startDay=day;
           const put=Math.min(remaining,avail);
           dayAlloc[day]=(dayAlloc[day]||0)+put;
-          remaining-=put;
-          endDay=day;
+          remaining-=put; endDay=day;
         }
         if(remaining>0.001) day++;
       }
-
-      const newStart=startDay||day;
-      const newDur=Math.max(1,(endDay||newStart)-newStart+1);
-      if(newStart!==t.start||newDur!==t.dur){
-        addLog({type:'move',task:t.name,from:t.start?sd(t.start):'—',to:sd(newStart)});
-        t.start=newStart; t.dur=newDur;
-        if(t._autoSplit){t.segments=null;t._autoSplit=false;}
-        moved++;
+      const ns=startDay||day, nd=Math.max(1,(endDay||ns)-ns+1);
+      if(item.isSub){
+        if(ns!==item.st.start){ item.st.start=ns; item.st.dur=nd; moved++; _movedIds.push(item.t.id); }
+      } else {
+        if(ns!==item.t.start||nd!==item.t.dur){
+          addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});
+          item.t.start=ns; item.t.dur=nd;
+          if(item.t._autoSplit){item.t.segments=null;item.t._autoSplit=false;}
+          moved++; _movedIds.push(item.t.id);
+        }
       }
-      cursor=endDay||newStart;
     });
   });
 
-  TASKS.sort((a,b)=>(a.start||99999)-(b.start||99999));
-  // computeAllSchedules is called inside renderGantt, which also updates _sched
+  // Task display order preserved — only scheduling positions change
   notify(`Auto-schedule: ${moved} task${moved!==1?'s':''} rescheduled`,'success');
-  persistState(['tasks']);
+  persistState(['tasks'],{tasks:[...new Set(_movedIds)]});
   renderGantt();
   renderDash();
 };
@@ -4147,10 +4545,11 @@ window.adminClearLogs=async()=>{
   _timerState={};
   clearInterval(_timerInterval); _timerInterval=null;
   try{
-    const nowTs=Date.now();
-    await fetch(_FB_ROOT+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({tasks:_toObj(TASKS),meta:{..._buildMeta(),ts:nowTs}})});
-    _lastSaveTs=nowTs;
+    await fetch(_FB_ROOT+'/tasks.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(_toObj(TASKS))});
+    await fetch(_FB_ROOT+'/meta.json',{method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(_buildMeta())});
+    _lastSaveTs=Date.now();
   }catch(e){}
   saveLocal();
   notify('All time logs cleared ✓','success');
@@ -4174,12 +4573,12 @@ window.adminFixData=async()=>{
       t.taskTeams=[{teamId:t.teamId,entries:allIds.map(id=>({id,hours:t.resHours[id]||0}))}];
     }
   });
-  // Save immediately bypassing debounce
   try{
-    const nowTs=Date.now();
-    await fetch(_FB_ROOT+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({tasks:_toObj(TASKS),meta:{..._buildMeta(),ts:nowTs}})});
-    _lastSaveTs=nowTs;
+    await fetch(_FB_ROOT+'/tasks.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(_toObj(TASKS))});
+    await fetch(_FB_ROOT+'/meta.json',{method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(_buildMeta())});
+    _lastSaveTs=Date.now();
     saveLocal();
     notify(`Data fixed: ${TASKS.length} tasks updated ✓`,'success');
   }catch(e){ notify('Save failed: '+e,'warn'); }
@@ -4227,7 +4626,7 @@ window.cycleStatus=(taskId)=>{
   t.status=next; t.prog=100;
   addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[next]||next});
   notify(`"${t.name}" → Done ✓`,'success');
-  persistState(['tasks']); renderGantt(); renderDash();
+  persistState(['tasks'],{tasks:[taskId]}); renderGantt(); renderDash();
 };
 window.showStatusMenu=(e,taskId)=>{
   const t=TASKS.find(x=>x.id===taskId);
@@ -4251,16 +4650,20 @@ window.setTaskStatus=(taskId,status)=>{
     _showHoldDialog(taskId);
     return;
   }
+  // 'doing' can only be set via the timer — redirect to tpStart
+  if(status==='doing'){
+    tpStart(taskId);
+    return;
+  }
   // If task has a milestone, 'done' becomes 'ready'
   if(status==='done'&&taskHasMilestone(taskId)){
     status='ready';
     notify(`"${t.name}" → Ready for Milestone (will auto-complete after milestone date)`,'success');
   }
   t.status=status;
-  if(status==='doing'&&!t.startedAt){ t.startedAt=GANTT_TODAY; if(!t.start) t.start=GANTT_TODAY; }
   addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[status]||status});
   notify(`"${t.name}" → ${SLABELS[status]}`,'success');
-  persistState(['tasks']); renderGantt(); renderDash();
+  persistState(['tasks'],{tasks:[taskId]}); renderGantt(); renderDash();
 };
 document.addEventListener('click',()=>{ const m=document.getElementById('stat-menu'); if(m) m.style.display='none'; });
 
@@ -4556,11 +4959,11 @@ function startSSE(){
       const {path,data}=JSON.parse(e.data);
       if(!data) return;
       const ts=data.meta?.ts||data.ts||0;
-      if(ts && ts>0 && ts===_lastSaveTs) return; // nossa própria escrita
+      if(ts && ts>0 && ts===_lastSaveTs) return; // our own write — skip echo
 
-      // Aplicar apenas o caminho que mudou
+      // Apply only the changed path
       if(path==='/'||path===''){
-        // Load inicial completo
+        // Initial full load
         if(data.tasks)     TASKS    =_mergeArr(TASKS,    _toArr(data.tasks),'tasks');
         if(data.resources) RESOURCES=_mergeArr(RESOURCES,_toArr(data.resources),'resources');
         if(data.teams)     TEAMS    =_mergeArr(TEAMS,    _toArr(data.teams),'teams');
@@ -4595,7 +4998,7 @@ function startSSE(){
         }
       }
 
-      // Run migration on received data (fixes stale teamIds/resHours)
+      // Run migration on received data
       migrateTasks();
       const p=S.page;
       if(p==='gantt')         {buildSFChips();buildTagPanel();renderGantt();}
@@ -4605,7 +5008,7 @@ function startSSE(){
       else if(p==='teams')     renderTeams();
       else if(p==='logs')      renderLogsPage();
       renderLog(); // always update the mini log strip
-      setSyncStatus('↓ atualizado');
+      setSyncStatus('↓ updated');
     }catch(ex){ console.warn('SSE parse error',ex); }
   });
 
@@ -4617,14 +5020,14 @@ function startSSE(){
 function uTask(id,field,value){
   const t=TASKS.find(x=>x.id===id); if(!t) return;
   if(field==='tags'&&Array.isArray(value)) t.tags=value; else t[field]=value;
-  persistState(['tasks']);
+  persistState(['tasks'],{tasks:[id]});
 }
 function delTask(id){
-  if(!confirm('Eliminar esta tarefa?')) return;
+  if(!confirm('Delete this task?')) return;
   const _dt2=TASKS.find(x=>x.id===id);
   addLog({type:'delete',task:_dt2?.name||id,from:'',to:`deleted from table view (was ${SLABELS[_dt2?.status]||_dt2?.status||'?'})`});
   TASKS=TASKS.filter(t=>t.id!==id);
-  persistState(['tasks']); renderDash(); renderGantt();
+  persistState(['tasks'],{tasks:[id]}); renderDash(); renderGantt();
 }
 window.uRes=(i,field,value)=>{
   const r=RESOURCES[i]; if(!r) return;
@@ -4757,7 +5160,7 @@ window.tpStart=(taskId)=>{
   _tpDayOffset=0;
 
   addLog({type:'time',task:t.name,from:'',to:'▶ timer started'});
-  persistState(['tasks']); _reRenderCurrent(); updateTimerToggle(); if(typeof updateMobBanner!=="undefined") updateMobBanner();
+  persistState(['tasks'],{tasks:[taskId]}); _reRenderCurrent(); updateTimerToggle(); if(typeof updateMobBanner!=="undefined") updateMobBanner();
   _startTimerTick();
   renderTimerPanel();
 };
@@ -4772,7 +5175,7 @@ window.tpPause=(taskId)=>{
   _saveTimerState();
   clearInterval(_timerInterval); _timerInterval=null;
   const t=TASKS.find(x=>x.id===taskId);
-  if(t){ t.status='paused'; const sessH=_sessionElapsedMs()/3600000; addLog({type:'time',task:t.name,from:'',to:`⏸ paused — session: ${_fmtHours(sessH)}`}); persistState(['tasks']); _reRenderCurrent(); }
+  if(t){ t.status='paused'; const sessH=_sessionElapsedMs()/3600000; addLog({type:'time',task:t.name,from:'',to:`⏸ paused — session: ${_fmtHours(sessH)}`}); persistState(['tasks'],{tasks:[taskId]}); _reRenderCurrent(); }
   renderTimerPanel();
 };
 
@@ -4787,7 +5190,7 @@ window.tpDone=(taskId)=>{
   const _sessH=_commitSession?0:0; const _loggedH=_totalLoggedH(t);
   t.status=taskHasMilestone(taskId)?'ready':'done'; t.prog=100;
   addLog({type:'status',task:t.name,from:'',to:`${taskHasMilestone(taskId)?'◆ Ready for Milestone':'✓ Done'} — total logged: ${_fmtHours(_loggedH)}`});
-  persistState(['tasks']); _reRenderCurrent();
+  persistState(['tasks'],{tasks:[taskId]}); _reRenderCurrent();
   notify(`"${t.name}" → Done ✓`,'success');
   renderTimerPanel();
 };
@@ -4803,7 +5206,7 @@ window.tpCancel=(taskId)=>{
   }
   t.status='cancelled';
   addLog({type:'status',task:t.name,from:'',to:'Cancelled'});
-  persistState(['tasks']); _reRenderCurrent();
+  persistState(['tasks'],{tasks:[taskId]}); _reRenderCurrent();
   notify(`"${t.name}" cancelled`,'warn');
   renderTimerPanel();
 };
@@ -4867,7 +5270,7 @@ window.tpAddTask=()=>{
     prog:0,deadline:null,timeLogs:[],subtasks:[],segments:null,notes:''};
   TASKS.push(t);
   migrateTasks();
-  persistState(['tasks']);
+  persistState(['tasks'],{tasks:[id]});
   _reRenderCurrent();
   document.getElementById('tp-desc').value='';
   document.getElementById('tp-hours').value='1';
@@ -5011,360 +5414,356 @@ function renderTimerPanel(){
 // HOW TO USE
 // ============================================================
 function renderHowTo(){
-  const admin=isAdmin();
   const doc=document.getElementById('howto-content');
   if(!doc) return;
   doc.innerHTML=`
-  <style>
-    .ht-section{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r12);padding:20px 24px;margin-bottom:16px;overflow:hidden;contain:content}
-    .ht-h2{font-size:15px;font-weight:700;margin-bottom:12px;color:var(--fg0);display:flex;align-items:center;gap:8px}
-    .ht-h3{font-size:12px;font-weight:600;margin:14px 0 5px;color:var(--acc)}
-    .ht-p{font-size:11px;color:var(--fg2);line-height:1.7;margin-bottom:8px}
-    .ht-2col{display:grid;grid-template-columns:1fr minmax(180px,260px);gap:20px;align-items:start}
-    .ht-img{border-radius:8px;width:100%;border:1px solid rgba(255,255,255,.07);display:block;overflow:hidden;contain:strict}
-    .ht-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;margin:0 2px 2px;vertical-align:middle}
-    @media(max-width:700px){.ht-2col{grid-template-columns:1fr}}
-  </style>
+<style>
+.ht-wrap{max-width:780px;margin:0 auto;padding:0 0 48px}
+.ht-step{background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r12);margin-bottom:10px;overflow:hidden}
+.ht-step-h{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;user-select:none;background:var(--bg2)}
+.ht-step-h:hover{background:var(--bg3)}
+.ht-num{width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.ht-num.orange{background:#f59e0b}.ht-num.green{background:var(--ok)}.ht-num.purple{background:#8b5cf6}
+.ht-title{font-size:12px;font-weight:600;color:var(--fg0);flex:1}
+.ht-badge{font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px;border:1px solid;flex-shrink:0}
+.ht-body{padding:14px 16px;border-top:1px solid var(--bd)}
+.ht-step.open .ht-body{display:block}.ht-step:not(.open) .ht-body{display:none}
+.ht-step.open .ht-arr{transform:rotate(90deg)}
+.ht-arr{transition:transform .2s;color:var(--fg3);font-size:13px}
+.ht-demo{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r8);padding:12px;margin:8px 0}
+.ht-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;border:1px solid var(--bd2);background:var(--bg3);color:var(--acc);cursor:pointer;font-size:11px;font-family:var(--font)}
+.ht-btn.ok{color:var(--ok);border-color:var(--ok)}.ht-btn.warn{color:var(--warn);border-color:var(--warn)}
+.ht-key{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--bg3);border:1px solid var(--bd2);color:var(--fg1);font-family:var(--mono)}
+.ht-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:11px;line-height:1.5}
+.ht-row:last-child{border:none}
+.ht-perm{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px}
+.ht-perm-hdr{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--fg3);padding:4px 6px}
+.ht-perm-cell{padding:4px 6px;border-radius:4px;background:var(--bg3)}
+.ht-perm-y{color:var(--ok)}.ht-perm-n{color:var(--fg3)}.ht-perm-p{color:var(--warn)}
+.tip{font-size:10px;color:var(--fg2);padding:6px 10px;background:rgba(79,156,249,.07);border-left:3px solid var(--acc);border-radius:0 5px 5px 0;margin:8px 0;line-height:1.6}
+.tip.orange{background:rgba(245,158,11,.07);border-color:#f59e0b}
+.tip.purple{background:rgba(139,92,246,.07);border-color:#8b5cf6}
+.ht-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ht-fi{font-size:11px;padding:4px 8px;border-radius:5px;border:1px solid var(--bd2);background:var(--bg2);color:var(--fg0);font-family:var(--font);width:100%}
+@media(max-width:600px){.ht-2col,.ht-perm{grid-template-columns:1fr}.ht-perm{display:none}}
+</style>
+<div class="ht-wrap">
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
+  <span style="font-size:20px;font-weight:700;color:var(--fg0)">Progest — How To Use</span>
+  <span style="font-size:10px;color:var(--fg3)">v0.3</span>
+</div>
+<p style="font-size:11px;color:var(--fg3);margin-bottom:16px">Click any section to expand. Sections marked <span style="color:#f59e0b;font-weight:700">Team Leader</span> or <span style="color:#8b5cf6;font-weight:700">Admin</span> require those roles.</p>
 
-  <!-- LOGIN -->
-  <div class="ht-section">
-    <div class="ht-h2">🔐 Login</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div>
-        <div class="ht-p">Select your name from the dropdown, then enter your password.</div>
-        <div class="ht-p"><b>First login:</b> password = your name in lowercase without spaces (e.g. <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">pedropereira</code>). You'll be asked to change it immediately.</div>
-        <div class="ht-p">To change your password: click your name at the bottom of the sidebar → <b>🔑 Change password</b>.</div>
-      </div>
-      <svg viewBox="0 0 240 200" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict">
-        <rect width="240" height="200" fill="#0d1018" rx="8"/>
-        <rect x="60" y="20" width="120" height="160" rx="12" fill="#141820" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
-        <rect x="80" y="32" width="40" height="40" rx="8" fill="url(#lg1)"/>
-        <defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f9cf9"/><stop offset="1" stop-color="#7b61ff"/></linearGradient></defs>
-        <text x="96" y="57" fill="white" font-size="16" font-weight="bold" font-family="sans-serif">P</text>
-        <text x="120" y="82" fill="#eef0f7" font-size="11" font-weight="600" text-anchor="middle" font-family="sans-serif">Progest.io</text>
-        <text x="120" y="94" fill="#6e7e9e" font-size="8" text-anchor="middle" font-family="sans-serif">PAZZI Project</text>
-        <rect x="76" y="104" width="88" height="22" rx="5" fill="#1b2130" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
-        <text x="82" y="119" fill="#6e7e9e" font-size="9" font-family="sans-serif">Pedro Pereira ▾</text>
-        <rect x="76" y="132" width="88" height="22" rx="5" fill="#1b2130" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
-        <text x="82" y="147" fill="#3e4f6a" font-size="9" font-family="sans-serif">••••••••</text>
-        <rect x="76" y="162" width="88" height="22" rx="5" fill="#4f9cf9"/>
-        <text x="120" y="177" fill="white" font-size="10" font-weight="700" text-anchor="middle" font-family="sans-serif">Sign in</text>
-      </svg>
+<!-- PERMISSION MATRIX -->
+<div class="ht-step open">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">★</div><div class="ht-title">Permission levels</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-perm" style="margin-bottom:8px">
+    <div class="ht-perm-hdr">Action</div>
+    <div class="ht-perm-hdr" style="color:var(--fg2)">Resource</div>
+    <div class="ht-perm-hdr" style="color:#f59e0b">Team Leader</div>
+    <div class="ht-perm-hdr" style="color:#8b5cf6">Admin / PM</div>
+    ${[
+      ['View Gantt','✓','✓','✓'],
+      ['Edit own tasks','✓','✓','✓'],
+      ['Edit team tasks','✗','✓','✓'],
+      ['Edit all tasks','✗','✗','✓'],
+      ['Disable own days','✓','✓','✓'],
+      ['Disable team days','✗','✓','✓'],
+      ['Disable global days','✗','✗','✓'],
+      ['Add/remove resources','✗','✗','✓ Admin'],
+      ['Manage teams','✗','✗','✓ Admin'],
+      ['Reset passwords','✗','✗','✓ Admin'],
+      ['Clear all time logs','✗','✗','✓ Admin'],
+    ].map(([a,r,tl,pm])=>`
+      <div class="ht-perm-cell">${a}</div>
+      <div class="ht-perm-cell ht-perm-${r==='✓'?'y':'n'}">${r}</div>
+      <div class="ht-perm-cell ht-perm-${tl.startsWith('✓')?'y':'n'}">${tl}</div>
+      <div class="ht-perm-cell ht-perm-${pm.startsWith('✓')?'y':'n'}">${pm}</div>`).join('')}
+  </div>
+  <div class="tip">Your role is shown at the bottom of the left sidebar. PM = any member of the <b>Project Management</b> team or Admin.</div>
+</div>
+</div>
+
+<!-- GANTT VIEWS -->
+<div class="ht-step open">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">1</div><div class="ht-title">Gantt — views & navigation</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      ${['By Resource (default)','By Team','By Project'].map(v=>`<button class="ht-btn" onclick="this.style.background='var(--acc)';this.style.color='#fff';setTimeout(()=>{this.style.background='';this.style.color=''},1200)">${v}</button>`).join('')}
+    </div>
+    <div class="ht-2col" style="font-size:11px;gap:6px">
+      <div class="ht-row"><span class="ht-key">Select… ▾</span><span>Filter by project / team / resource. Multiple selections supported.</span></div>
+      <div class="ht-row"><span class="ht-key">✕ Deselect all</span><span>Hide everything — click individual items to show them again.</span></div>
+      <div class="ht-row"><span class="ht-key">⤷ Sub</span><span>Show/hide subtask rows. When hidden, subtask bars appear inside the parent row.</span></div>
+      <div class="ht-row"><span class="ht-key">⊕ / ⊖ zoom</span><span>Adjust column width. ↺ resets to auto-fit.</span></div>
+      <div class="ht-row"><span class="ht-key">← → arrows</span><span>Navigate weeks forward/back.</span></div>
+      <div class="ht-row"><span class="ht-key">Today</span><span>Jump back to the current week.</span></div>
     </div>
   </div>
+  <div class="tip">Bar colour = team colour. Bar thickness = hours ÷ daily capacity. Past days show <b>actual logged hours</b>; future days show <b>planned hours</b>.</div>
+</div>
+</div>
 
-  <!-- GANTT -->
-  <div class="ht-section">
-    <div class="ht-h2">📅 Dynamic Gantt</div>
-    <div class="ht-p">The main project planning view. Shows all tasks as horizontal bars across a calendar.</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div>
-        <div class="ht-h3">Views &amp; Navigation</div>
-        <div class="ht-p"><b>Project / Teams / Resources</b> — group tasks differently · <b>Select…</b> filter to specific team/resource · <b>‹ Today ›</b> navigate weeks · <b>Wk</b> toggle weekly view</div>
-        <div class="ht-h3">Task status dots</div>
-        <div class="ht-p">
-          <span class="ht-badge" style="border:1.5px solid #6e7e9e;color:#6e7e9e">○ To Do</span>
-          <span class="ht-badge" style="border:1.5px solid #4f9cf9;color:#4f9cf9">▶ In Progress</span>
-          <span class="ht-badge" style="border:1.5px solid #4f9cf9;color:#4f9cf9">⏸ Paused</span>
-          <span class="ht-badge" style="background:#22c55e;color:#fff">✓ Done</span>
-          <span class="ht-badge" style="border:1.5px solid #f0a928;color:#f0a928">⏸ On Hold</span>
-          <span class="ht-badge" style="border:1.5px solid #f05252;color:#f05252">✕ Cancelled</span><br>
-          <b>Click the dot</b> → marks Done &nbsp;|&nbsp; <b>Right-click the dot</b> → Done / On Hold / Cancelled
-        </div>
-        <div class="ht-h3">Bars</div>
-        <div class="ht-p"><b>Height</b> = hours/day &nbsp;|&nbsp; <b>Colour</b> = team &nbsp;|&nbsp; <b>Grey striped</b> = past/locked &nbsp;|&nbsp; <b>Red outline</b> = overdue<br>
-        <b>Drag bar</b> = move date &nbsp;|&nbsp; <b>Drag right edge</b> = resize &nbsp;|&nbsp; <b>Click</b> = edit &nbsp;|&nbsp; <b>Right-click</b> = quick actions</div>
-        <div class="ht-h3">Filters</div>
-        <div class="ht-p">Status chips toggle visibility · <b>Tags ▾</b> filter by task tags · <b>Search box</b> full-text across all fields</div>
-      </div>
-      <rect width="700" height="160" fill="#0d1018" rx="6"/>
-      <!-- Toolbar row -->
-      <rect y="0" width="700" height="28" fill="#141820"/>
-      <rect x="8" y="6" width="54" height="16" rx="4" fill="#1b2130" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
-      <text x="16" y="18" fill="#b0bcda" font-size="9" font-family="sans-serif" font-weight="600">Project</text>
-      <rect x="66" y="6" width="40" height="16" rx="4" fill="#1b2130"/>
-      <text x="74" y="18" fill="#6e7e9e" font-size="9" font-family="sans-serif">Teams</text>
-      <rect x="110" y="6" width="58" height="16" rx="4" fill="#1b2130"/>
-      <text x="118" y="18" fill="#6e7e9e" font-size="9" font-family="sans-serif">Resources</text>
-      <rect x="550" y="6" width="36" height="16" rx="4" fill="rgba(79,156,249,.15)" stroke="rgba(79,156,249,.3)" stroke-width="1"/>
-      <text x="560" y="18" fill="#4f9cf9" font-size="9" font-family="sans-serif">To Do</text>
-      <rect x="590" y="6" width="50" height="16" rx="4" fill="rgba(79,156,249,.15)" stroke="rgba(79,156,249,.3)" stroke-width="1"/>
-      <text x="596" y="18" fill="#4f9cf9" font-size="9" font-family="sans-serif">▶ Active</text>
-      <!-- Header dates row -->
-      <rect y="28" width="700" height="22" fill="#1b2130"/>
-      <text x="8" y="44" fill="#6e7e9e" font-size="9" font-family="sans-serif" font-weight="700">Task</text>
-      <text x="155" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">20</text>
-      <text x="205" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">21</text>
-      <text x="255" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">22</text>
-      <rect x="297" y="28" width="52" height="22" fill="rgba(79,156,249,.18)"/>
-      <text x="305" y="44" fill="#4f9cf9" font-size="9" font-family="monospace" font-weight="bold">23 ◉</text>
-      <text x="355" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">24</text>
-      <text x="405" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">25</text>
-      <text x="455" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">26</text>
-      <text x="505" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">27</text>
-      <text x="555" y="44" fill="#6e7e9e" font-size="9" font-family="monospace">28</text>
-      <!-- Milestone line col 25 -->
-      <rect x="407" y="28" width="2" height="132" fill="#7b61ff" opacity=".7"/>
-      <circle cx="408" cy="39" r="8" fill="#7b61ff"/>
-      <text x="405" y="43" fill="white" font-size="8" font-weight="bold" font-family="monospace">25</text>
-      <!-- Task rows -->
-      <text x="8" y="68" fill="#b0bcda" font-size="9" font-family="sans-serif">Bearing problem</text>
-      <circle cx="130" cy="64" r="5" fill="transparent" stroke="#4f9cf9" stroke-width="1.5"/>
-      <rect x="148" y="56" width="70" height="16" rx="3" fill="#00c9a0"/>
-      <text x="174" y="68" fill="#fff" font-size="8" font-family="sans-serif" font-weight="700">8h</text>
-      <!-- Milestone line on this row -->
-      <rect x="407" y="50" width="2" height="26" fill="#7b61ff" opacity=".6"/>
-      <circle cx="408" cy="63" r="5" fill="#7b61ff"/>
-      <!-- Row 2 -->
-      <text x="8" y="94" fill="#b0bcda" font-size="9" font-family="sans-serif">Fix CFP shovel fitting</text>
-      <circle cx="130" cy="90" r="5" fill="transparent" stroke="#6e7e9e" stroke-width="1.5"/>
-      <rect x="248" y="82" width="100" height="16" rx="3" fill="#4f9cf9" opacity=".7"/>
-      <text x="284" y="94" fill="#fff" font-size="8" font-family="sans-serif" font-weight="700">5h</text>
-      <!-- Row 3 -->
-      <text x="8" y="120" fill="#b0bcda" font-size="9" font-family="sans-serif">Sauces accessories</text>
-      <circle cx="130" cy="116" r="5" fill="transparent" stroke="#f0a928" stroke-width="1.5"/>
-      <rect x="348" y="108" width="140" height="16" rx="3" fill="#f59e0b" opacity=".6"/>
-      <text x="404" y="120" fill="#fff" font-size="8" font-family="sans-serif" font-weight="700">16h</text>
-      <!-- Milestone line on row 3 -->
-      <rect x="407" y="102" width="2" height="26" fill="#7b61ff" opacity=".6"/>
-      <circle cx="408" cy="115" r="5" fill="#7b61ff"/>
-      <!-- Row 4 - overdue -->
-      <text x="8" y="146" fill="#b0bcda" font-size="9" font-family="sans-serif">Validate tools</text>
-      <circle cx="130" cy="142" r="5" fill="transparent" stroke="#6e7e9e" stroke-width="1.5"/>
-      <rect x="148" y="134" width="90" height="16" rx="3" fill="#7b61ff" opacity=".5" stroke="#f05252" stroke-width="1"/>
-      <text x="172" y="146" fill="#fff" font-size="8" font-family="sans-serif" font-weight="700">8h</text>
-      <!-- Legend -->
-      <text x="148" y="158" fill="#6e7e9e" font-size="7" font-family="sans-serif">bar height = h/day · drag to reschedule · right-click for actions · ◎ status dot = click→Done</text>
-      <div style="display:flex;flex-direction:column;gap:10px">
-      <svg viewBox="0 0 700 160" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict;max-width:100%">
-        <rect width="240" height="180" fill="#0d1018" rx="6"/>
-        <text x="12" y="18" fill="#6e7e9e" font-size="8" font-family="sans-serif" font-weight="700">RIGHT-CLICK MENU</text>
-        <rect x="12" y="24" width="140" height="148" rx="6" fill="#1b2130" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
-        <text x="22" y="40" fill="#6e7e9e" font-size="8" font-family="sans-serif">Bearing problem</text>
-        <rect x="18" y="46" width="128" height="1" fill="rgba(255,255,255,.07)"/>
-        <rect x="18" y="50" width="128" height="22" rx="3" fill="rgba(255,255,255,.03)"/>
-        <text x="26" y="65" fill="#b0bcda" font-size="9" font-family="sans-serif">✎ Edit task</text>
-        <text x="26" y="85" fill="#b0bcda" font-size="9" font-family="sans-serif">⌥ Split task</text>
-        <rect x="18" y="94" width="128" height="1" fill="rgba(255,255,255,.07)"/>
-        <text x="26" y="112" fill="#22c55e" font-size="9" font-family="sans-serif">✓ Mark done</text>
-        <text x="26" y="130" fill="#f0a928" font-size="9" font-family="sans-serif">⏸ On hold…</text>
-        <text x="26" y="148" fill="#f05252" font-size="9" font-family="sans-serif">✕ Cancel</text>
-        <rect x="18" y="155" width="128" height="1" fill="rgba(255,255,255,.07)"/>
-        <text x="26" y="168" fill="#f05252" font-size="9" font-family="sans-serif">🗑 Delete</text>
-      </svg>
-      </div>
+<!-- TASKS -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">2</div><div class="ht-title">Creating & editing tasks</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo">
+    <div class="ht-row"><span class="ht-key">+ Task</span><span>Opens the task modal (toolbar). Can also drag an empty cell to create.</span></div>
+    <div class="ht-row"><span class="ht-key">Click bar</span><span>Opens the edit modal for that task.</span></div>
+    <div class="ht-row"><span class="ht-key">Drag bar</span><span>Move the task's start date.</span></div>
+    <div class="ht-row"><span class="ht-key">◂ ▸ grips</span><span>Resize duration — hours recalculated automatically.</span></div>
+    <div class="ht-row"><span class="ht-key">Right-click bar</span><span>Status context menu: Done, Hold, Cancelled…</span></div>
+  </div>
+  <p style="font-size:11px;color:var(--fg2);margin:8px 0">Two scheduling modes:</p>
+  <div class="ht-2col" style="font-size:11px">
+    <div style="padding:8px;background:var(--bg3);border-radius:6px"><b style="color:var(--acc)">Continuous</b> — total hours, distributed across days automatically by auto-schedule.</div>
+    <div style="padding:8px;background:var(--bg3);border-radius:6px"><b style="color:var(--acc)">Daily</b> — hours/day and a date range. Runs in parallel (doesn't consume shared capacity).</div>
+  </div>
+  <div class="tip">Each task can have multiple resources and teams. Hours are split equally by default — adjust per resource in the task modal.</div>
+</div>
+</div>
+
+<!-- SUBTASKS -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">3</div><div class="ht-title">Subtasks</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo" id="ht-sub-demo">
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg0)">Task example — total: <b id="ht-sub-total">6h</b> <span id="ht-sub-prog" style="font-size:10px;color:var(--fg3)"></span></div>
+    <div id="ht-sub-list" style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px"></div>
+    <button class="ht-btn" onclick="htAddSub()">+ Add subtask</button>
+  </div>
+  <div class="ht-row"><span class="ht-key">⤷ Sub OFF</span><span>Subtask rows hidden. Each sub bar appears <b>below</b> the parent bar in the same row — thickness proportional to its hours ÷ cap, colour slightly more transparent.</span></div>
+  <div class="ht-row"><span class="ht-key">Click subtask bar</span><span>Opens subtask editor (name, resource, hours, deadline, status, notes).</span></div>
+  <div class="tip">Subtasks are scheduled by <b>Auto-schedule</b> and have their own resources and deadlines. Parent progress auto-calculates from subtask completion.</div>
+</div>
+</div>
+
+<!-- STATUSES -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">4</div><div class="ht-title">Task statuses</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo">
+    ${Object.entries({todo:'Not started',doing:'Timer running — set only via ▶ timer button',paused:'Started, timer stopped',ready:'Done, waiting for milestone date — auto-completes after milestone',done:'Fully completed',hold:'Blocked — a reason must be given',cancelled:'Excluded from planning'}).map(([s,d])=>`
+    <div class="ht-row">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SCOLS[s]};flex-shrink:0;margin-top:3px"></span>
+      <span style="font-size:10px;font-weight:700;min-width:80px;color:${SCOLS[s]}">${SLABELS[s]||s}</span>
+      <span style="color:var(--fg2)">${d}</span>
+    </div>`).join('')}
+  </div>
+  <div class="tip">The red/orange vertical line = <b>project deadline</b>. Task bars turn red outline when they extend past the task's own deadline.</div>
+</div>
+</div>
+
+<!-- TIMER -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">5</div><div class="ht-title">Timer — logging time</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo">
+    <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:7px;padding:10px;margin-bottom:8px">
+      <div style="font-size:24px;font-family:var(--mono);font-weight:700;color:var(--acc)" id="ht-timer-display">00:00:00</div>
+      <div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--fg0)" id="ht-timer-task">No task</div>
+        <div style="font-size:10px;color:var(--fg3)" id="ht-timer-state">Stopped</div></div>
     </div>
-    <div class="ht-h3">Milestones ◆</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div class="ht-p">Create with <b>◆ Milestone</b> button. Choose name, date, colour, and associate dependent tasks.<br>
-      Appears as a <b>coloured vertical line + dot</b> in the date header.<br>
-      <b>Click line/dot</b> → filter Gantt to show only associated tasks (click again to clear)<br>
-      <b>Right-click</b> → edit or delete milestone</div>
-      <svg viewBox="0 0 240 100" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict">
-        <rect width="240" height="100" fill="#0d1018" rx="6"/>
-        <rect x="0" y="0" width="240" height="26" fill="#1b2130"/>
-        <text x="12" y="18" fill="#6e7e9e" font-size="9" font-family="monospace">20</text>
-        <text x="62" y="18" fill="#6e7e9e" font-size="9" font-family="monospace">21</text>
-        <text x="112" y="18" fill="#6e7e9e" font-size="9" font-family="monospace">22</text>
-        <rect x="155" y="0" width="50" height="26" fill="rgba(123,97,255,.12)" stroke="rgba(123,97,255,.4)" stroke-width="1"/>
-        <text x="163" y="14" fill="#7b61ff" font-size="9" font-family="monospace" font-weight="bold">23</text>
-        <circle cx="180" cy="22" r="8" fill="#7b61ff"/><text x="177" y="26" fill="white" font-size="8" font-weight="bold">23</text>
-        <rect x="179" y="26" width="2" height="74" fill="#7b61ff" opacity=".65"/>
-        <text x="210" y="18" fill="#6e7e9e" font-size="9" font-family="monospace">24</text>
-        <text x="12" y="48" fill="#b0bcda" font-size="9" font-family="sans-serif">Task A</text>
-        <rect x="108" y="38" width="70" height="14" rx="3" fill="#00c9a0"/>
-        <circle cx="180" cy="45" r="5" fill="#7b61ff"/>
-        <text x="12" y="74" fill="#b0bcda" font-size="9" font-family="sans-serif">Task B</text>
-        <rect x="158" y="64" width="70" height="14" rx="3" fill="#4f9cf9" opacity=".7"/>
-        <circle cx="180" cy="71" r="5" fill="#7b61ff"/>
-        <text x="12" y="95" fill="#6e7e9e" font-size="7.5" font-family="sans-serif">Click line/dot → filter · Right-click → edit/delete</text>
-      </svg>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <select id="ht-timer-sel" class="ht-fi" style="flex:1;min-width:140px">
+        <option value="">Select a task…</option>
+        ${TASKS.filter(t=>t.status!=='done'&&t.status!=='cancelled').slice(0,8).map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}
+      </select>
+      <button class="ht-btn ok" onclick="htTimerStart()">▶ Start</button>
+      <button class="ht-btn warn" onclick="htTimerPause()">⏸ Pause</button>
+      <button class="ht-btn ok" onclick="htTimerDone()">✓ Done</button>
+    </div>
+    <div id="ht-timer-log" style="font-size:10px;color:var(--fg3);margin-top:5px"></div>
+  </div>
+  <div class="tip">Timer keeps running if you navigate to other pages. On browser close, the session is saved automatically. Only <b>you</b> can log time — it appears under your name in the Logs page.</div>
+</div>
+</div>
+
+<!-- DAYS -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">6</div><div class="ht-title">Working days — enable / disable</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-row"><span class="ht-key">Click day header</span><span>Toggle that day. Weekends/holidays → enable for everyone (PM only). Weekdays → disable globally (PM only).</span></div>
+  <div class="ht-row"><span class="ht-key">Click resource row header</span><span>Toggle that day for that specific resource. Team leaders can do this for their team members. Resources can do it for themselves.</span></div>
+  <div class="tip orange">When a working day is disabled: tasks starting on it are pushed forward; tasks spanning it are extended by one working day.</div>
+</div>
+</div>
+
+<!-- AUTO-SCHEDULE -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">7</div><div class="ht-title">Auto-schedule & milestones</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-row"><span class="ht-key">⚡ Auto</span><span>Packs all tasks from today, filling each resource's daily capacity in start-date order. Also schedules subtasks interleaved with parent tasks.</span></div>
+  <div class="ht-row"><span class="ht-key">◆ Milestone</span><span>Link tasks to a delivery date. Tasks set to <b>Ready for Milestone</b> auto-complete to <b>Done</b> after the milestone date passes.</span></div>
+  <div class="ht-demo">
+    ${MILESTONES.slice(0,3).map(ms=>{
+      const done=(ms.taskIds||[]).filter(id=>TASKS.find(t=>t.id===id&&(t.status==='done'||t.status==='ready'))).length;
+      const total=(ms.taskIds||[]).length;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:10px;border-bottom:1px solid var(--bd)">
+        <span style="width:8px;height:8px;border-radius:50%;background:${ms.color||'var(--acc2)'};flex-shrink:0"></span>
+        <span style="font-weight:600;color:${ms.color||'var(--acc2)'};">${ms.name}</span>
+        <span style="color:var(--fg3)">${ms.dayIdx?sd(ms.dayIdx):'no date'}</span>
+        <span style="color:var(--ok);margin-left:auto">${done}/${total} done</span>
+      </div>`;
+    }).join('')||'<div style="font-size:11px;color:var(--fg3)">No milestones yet — click ◆ Milestone in the toolbar to create one.</div>'}
+  </div>
+</div>
+</div>
+
+<!-- TEAM LEADER -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num" style="background:#f59e0b">TL</div><div class="ht-title">Team Leader features</div>
+  <span class="ht-badge" style="color:#f59e0b;border-color:#f59e0b">Team Leader</span>
+  <span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="tip orange" style="margin-bottom:10px">A Team Leader is any resource set as leader of a team (configurable in the Teams page by an Admin).</div>
+  <div class="ht-row"><span>✎ Edit tasks</span><span>Can create and edit tasks belonging to their team(s) in addition to their own tasks.</span></div>
+  <div class="ht-row"><span>📅 Days</span><span>Can enable/disable working days for any resource in their team — click the resource row header in the Gantt.</span></div>
+  <div class="ht-row"><span>👁 View</span><span>Can see all tasks in their teams and all team members' Gantt rows.</span></div>
+  <div class="tip orange">Team leaders cannot: add/remove resources, change team composition, reset passwords, or edit tasks from other teams.</div>
+</div>
+</div>
+
+<!-- ADMIN -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num" style="background:#8b5cf6">A</div><div class="ht-title">Admin features</div>
+  <span class="ht-badge" style="color:#8b5cf6;border-color:#8b5cf6">Admin only</span>
+  <span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-2col" style="margin-bottom:10px">
+    <div>
+      <div style="font-size:10px;font-weight:700;color:var(--fg2);margin-bottom:6px">Resources page</div>
+      <div class="ht-row"><span class="ht-key">🔑</span><span>Reset password — resets to the resource's name (lowercase, no spaces). User must change on next login.</span></div>
+      <div class="ht-row"><span class="ht-key">☆ / ★</span><span>Toggle Admin — grants or revokes admin rights for that resource.</span></div>
+      <div class="ht-row"><span class="ht-key">✕</span><span>Delete resource permanently.</span></div>
+      <div class="ht-row"><span class="ht-key">👁</span><span>Show/hide resource in workload gauges on the Dashboard.</span></div>
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:700;color:var(--fg2);margin-bottom:6px">Teams page</div>
+      <div class="ht-row"><span>Leader</span><span>Set the Team Leader for each team — they get editing rights for all tasks in that team.</span></div>
+      <div class="ht-row"><span>Colour</span><span>Team colour appears on all task bars for that team throughout the Gantt.</span></div>
+      <div class="ht-row"><span>+ Add team</span><span>Create a new team. Assign resources to teams on the Resources page.</span></div>
     </div>
   </div>
+  <div style="font-size:10px;font-weight:700;color:var(--fg2);margin-bottom:6px">Other admin actions</div>
+  <div class="ht-row"><span class="ht-key">Clear logs</span><span>In the Logs page — permanently clears ALL time logs from ALL tasks. Cannot be undone.</span></div>
+  <div class="ht-row"><span class="ht-key">Global days</span><span>Click any day column header to disable/enable it globally for all resources.</span></div>
+  <div class="ht-row"><span class="ht-key">Projects</span><span>Create projects, set deadlines (shown as vertical line in Gantt), assign colours and status.</span></div>
+  <div class="tip purple">The admin account (pp) cannot have its admin status revoked. All other admins can be toggled by any existing admin.</div>
+</div>
+</div>
 
-  <!-- TIMER -->
-  <div class="ht-section">
-    <div class="ht-h2">⏱ Timer</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div>
-        <div class="ht-p">The <b>TIMER tab</b> on the right edge of the screen opens the time-tracking panel.</div>
-        <div class="ht-p">Tab states: <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,.12);border:1px solid #22c55e;border-radius:4px;padding:2px 6px;font-size:9px;color:#22c55e">▶ REC</span> recording &nbsp;|&nbsp; <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(240,82,82,.1);border:1px solid #f05252;border-radius:4px;padding:2px 6px;font-size:9px;color:#f05252;animation:none">⏱ TIMER</span> not recording (red blink)</div>
-        <div class="ht-h3">Controls</div>
-        <div class="ht-p">
-          <span class="ht-badge" style="background:rgba(79,156,249,.2);color:#4f9cf9">▶ Start</span> begins timing, sets task In Progress, reschedules your other tasks<br>
-          <span class="ht-badge" style="background:rgba(240,169,40,.2);color:#f0a928">⏸ Pause</span> saves session log, task becomes Paused<br>
-          <span class="ht-badge" style="background:rgba(34,197,94,.2);color:#22c55e">✓ Done</span> logs time and marks task complete<br>
-          <span class="ht-badge" style="background:rgba(240,82,82,.15);color:#f05252">✕</span> cancels task, logs time up to now
-        </div>
-        <div class="ht-h3">Views</div>
-        <div class="ht-p"><b>Today</b> — tasks scheduled for today &nbsp;|&nbsp; <b>All mine</b> — all your tasks<br>
-        Only the active task expands with TOTAL / SESSION / REMAINING counters<br>
-        <b>Quick add</b> at the bottom — add a task directly from the timer</div>
-        <div class="ht-h3">Counters</div>
-        <div class="ht-p"><b>TOTAL</b> = all time logged on this task &nbsp;|&nbsp; <b>SESSION</b> = current session only &nbsp;|&nbsp; <b>REMAINING</b> = planned hours minus total logged</div>
-      </div>
-      <svg viewBox="0 0 200 310" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict">
-        <rect width="200" height="310" fill="#141820" rx="6"/>
-        <rect x="0" y="0" width="200" height="36" fill="#1b2130" rx="6 6 0 0"/>
-        <text x="12" y="16" fill="#eef0f7" font-size="11" font-weight="700" font-family="sans-serif">⏱ Time Tracker</text>
-        <rect x="8" y="20" width="48" height="12" rx="5" fill="#222a3a" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
-        <text x="17" y="30" fill="#eef0f7" font-size="8" font-weight="700" font-family="sans-serif">Today</text>
-        <rect x="60" y="20" width="52" height="12" rx="5" fill="transparent"/>
-        <text x="68" y="30" fill="#6e7e9e" font-size="8" font-family="sans-serif">All mine</text>
-        <!-- Active task -->
-        <rect x="6" y="40" width="188" height="110" rx="8" fill="rgba(79,156,249,.1)" stroke="#4f9cf9" stroke-width="2"/>
-        <circle cx="19" cy="54" r="5" fill="#4f9cf9"/>
-        <text x="28" y="58" fill="#eef0f7" font-size="10" font-weight="700" font-family="sans-serif">Bearing problem</text>
-        <text x="28" y="70" fill="#6e7e9e" font-size="8" font-family="sans-serif">Mechanics · 15h 57m left</text>
-        <text x="20" y="92" fill="#4f9cf9" font-size="20" font-weight="700" font-family="monospace">00:02:10</text>
-        <rect x="8" y="98" width="188" height="1" fill="rgba(79,156,249,.3)"/>
-        <text x="20" y="112" fill="#6e7e9e" font-size="8" font-family="sans-serif">TOTAL</text>
-        <text x="120" y="112" fill="#4f9cf9" font-size="11" font-weight="700" font-family="monospace">00:02:10</text>
-        <text x="20" y="126" fill="#6e7e9e" font-size="8" font-family="sans-serif">SESSION</text>
-        <text x="120" y="126" fill="#6e7e9e" font-size="10" font-family="monospace">00:02:10</text>
-        <text x="20" y="140" fill="#6e7e9e" font-size="8" font-family="sans-serif">REMAINING</text>
-        <text x="120" y="140" fill="#22c55e" font-size="11" font-weight="700" font-family="monospace">15h 58m</text>
-        <!-- Action buttons -->
-        <rect x="6" y="155" width="54" height="20" rx="4" fill="rgba(240,169,40,.2)"/>
-        <text x="17" y="169" fill="#f0a928" font-size="9" font-weight="700" font-family="sans-serif">⏸ Pause</text>
-        <rect x="64" y="155" width="54" height="20" rx="4" fill="rgba(34,197,94,.2)"/>
-        <text x="78" y="169" fill="#22c55e" font-size="9" font-weight="700" font-family="sans-serif">✓ Done</text>
-        <rect x="122" y="155" width="30" height="20" rx="4" fill="rgba(240,82,82,.15)"/>
-        <text x="132" y="169" fill="#f05252" font-size="9" font-weight="700" font-family="sans-serif">✕</text>
-        <!-- Minimized tasks -->
-        <rect x="6" y="182" width="188" height="32" rx="6" fill="#1b2130" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <circle cx="18" cy="198" r="4" fill="#6e7e9e"/>
-        <text x="27" y="202" fill="#b0bcda" font-size="9" font-family="sans-serif">Fix CFP shovel fitting</text>
-        <text x="125" y="202" fill="#00c9a0" font-size="9" font-family="sans-serif">8h left</text>
-        <rect x="164" y="188" width="24" height="16" rx="4" fill="#4f9cf9"/>
-        <text x="172" y="200" fill="white" font-size="9" font-family="sans-serif">▶</text>
-        <rect x="6" y="220" width="188" height="32" rx="6" fill="#1b2130" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <circle cx="18" cy="236" r="4" fill="#6e7e9e"/>
-        <text x="27" y="240" fill="#b0bcda" font-size="9" font-family="sans-serif">Sauces accessories</text>
-        <text x="125" y="240" fill="#00c9a0" font-size="9" font-family="sans-serif">16h left</text>
-        <rect x="164" y="226" width="24" height="16" rx="4" fill="#4f9cf9"/>
-        <text x="172" y="238" fill="white" font-size="9" font-family="sans-serif">▶</text>
-        <!-- Timer tab indicator -->
-        <rect x="188" y="270" width="12" height="36" rx="4 0 0 4" fill="#222a3a" stroke="#22c55e" stroke-width="2"/>
-        <text x="190" y="296" fill="#22c55e" font-size="7" font-family="sans-serif" writing-mode="vertical-lr">REC▶</text>
-        <text x="6" y="305" fill="#6e7e9e" font-size="7.5" font-family="sans-serif">Tab: green ▶REC = recording · red blink = idle</text>
-      </svg>
-    </div>
+<!-- LOGS & SYNC -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">8</div><div class="ht-title">Logs & real-time sync</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-demo" style="max-height:160px;overflow-y:auto">
+    ${GLOG.slice(0,8).map(e=>`
+    <div style="display:grid;grid-template-columns:38px 75px 55px 1fr;gap:5px;padding:3px 0;border-bottom:1px solid var(--bd);font-size:10px;align-items:start">
+      <span style="color:var(--fg3)">${e.time||'—'}</span>
+      <span style="font-weight:600;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(e.user||'').split(' ')[0]}</span>
+      <span style="color:${LCOL[e.type]||'var(--fg2)'};">${LICO[e.type]||'·'} ${e.type}</span>
+      <span style="color:var(--fg1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(e.task||'').slice(0,18)}${e.to?' — '+(e.to||'').slice(0,40):''}</span>
+    </div>`).join('')||'<div style="font-size:11px;color:var(--fg3)">No activity yet.</div>'}
   </div>
+  <div class="ht-row" style="margin-top:8px"><span class="ht-key">● live</span><span>Firebase SSE pushes changes to all open tabs in real time. Each save sends only the changed entity — no full overwrites.</span></div>
+  <div class="ht-row"><span class="ht-key">↓ updated</span><span>Appears when another user's change arrives. Gantt refreshes automatically.</span></div>
+  <div class="tip">Logs record full diffs: "deadline: none → 2026-05-10", "subtask done: Check wiring", "tag added: ROB". Filter by user or type on the Logs page.</div>
+</div>
+</div>
 
-  <!-- MY SPACE -->
-  <div class="ht-section">
-    <div class="ht-h2">◎ My Space</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div>
-        <div class="ht-p">Personal view showing only your tasks — Gantt, time logs, and quick stats.</div>
-        <div class="ht-h3">My Gantt</div>
-        <div class="ht-p">Shows 20 working days. <b>Weekends</b> appear as narrow dark columns.<br>
-        <b>Solid bars</b> = hours already logged &nbsp;|&nbsp; <b>Semi-transparent bars</b> = planned remaining<br>
-        <b>Available capacity</b> row: <span style="color:#22c55e">green</span> = free · <span style="color:#f59e0b">yellow</span> = nearly full · <span style="color:#f05252">red</span> = 0<br>
-        <b>‹ week ›</b> navigate · <b>Today</b> jump to current week</div>
-        <div class="ht-h3">Milestone lines</div>
-        <div class="ht-p">Milestones with your tasks as dependencies appear as coloured vertical lines. Click to filter.</div>
-        <div class="ht-h3">Time log</div>
-        <div class="ht-p">Table showing all recorded sessions — date, hours, and timer notes.</div>
-      </div>
-      <svg viewBox="0 0 240 200" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict">
-        <rect width="240" height="200" fill="#0d1018" rx="6"/>
-        <!-- Stats row -->
-        <rect x="6" y="6" width="108" height="44" rx="6" fill="#141820" stroke="rgba(79,156,249,.4)" stroke-width="1.5"/>
-        <text x="14" y="20" fill="#6e7e9e" font-size="7.5" font-family="sans-serif" font-weight="700">MY TASKS</text>
-        <text x="14" y="38" fill="#eef0f7" font-size="20" font-weight="700" font-family="sans-serif">8</text>
-        <text x="14" y="48" fill="#6e7e9e" font-size="7" font-family="sans-serif">0 pending · 1 doing</text>
-        <rect x="120" y="6" width="114" height="44" rx="6" fill="#141820" stroke="rgba(0,201,160,.4)" stroke-width="1.5"/>
-        <text x="128" y="20" fill="#6e7e9e" font-size="7.5" font-family="sans-serif" font-weight="700">LOGGED</text>
-        <text x="128" y="38" fill="#eef0f7" font-size="20" font-weight="700" font-family="sans-serif">6m</text>
-        <text x="128" y="48" fill="#6e7e9e" font-size="7" font-family="sans-serif">of 63h planned</text>
-        <!-- Mini gantt -->
-        <rect y="56" width="240" height="16" fill="#1b2130"/>
-        <text x="6" y="68" fill="#6e7e9e" font-size="7.5" font-family="monospace">20 Mon</text>
-        <text x="48" y="68" fill="#6e7e9e" font-size="7.5" font-family="monospace">21</text>
-        <rect x="74" y="56" width="14" height="16" fill="rgba(10,14,22,.45)"/>
-        <text x="76" y="68" fill="#3e4f6a" font-size="6" font-family="monospace" writing-mode="vertical-lr">Sa</text>
-        <rect x="88" y="56" width="14" height="16" fill="rgba(10,14,22,.45)"/>
-        <text x="90" y="68" fill="#3e4f6a" font-size="6" font-family="monospace" writing-mode="vertical-lr">Su</text>
-        <text x="104" y="68" fill="#6e7e9e" font-size="7.5" font-family="monospace">23</text>
-        <text x="134" y="68" fill="#4f9cf9" font-size="7.5" font-family="monospace" font-weight="bold">24</text>
-        <!-- Capacity row -->
-        <rect y="72" width="240" height="14" fill="#141820"/>
-        <text x="6" y="82" fill="#6e7e9e" font-size="7" font-family="sans-serif">Cap.</text>
-        <text x="44" y="82" fill="#22c55e" font-size="8" font-weight="700" font-family="monospace">7h</text>
-        <rect x="74" y="72" width="14" height="14" fill="rgba(10,14,22,.45)"/>
-        <rect x="88" y="72" width="14" height="14" fill="rgba(10,14,22,.45)"/>
-        <text x="104" y="82" fill="#f05252" font-size="8" font-weight="700" font-family="monospace">0h</text>
-        <text x="134" y="82" fill="#f59e0b" font-size="8" font-weight="700" font-family="monospace">2h</text>
-        <!-- Task rows -->
-        <text x="6" y="104" fill="#b0bcda" font-size="8.5" font-family="sans-serif">Bearing problem</text>
-        <rect x="44" y="93" width="26" height="16" rx="3" fill="#00c9a0"/>
-        <text x="50" y="104" fill="#fff" font-size="7.5" font-family="sans-serif" font-weight="700">3h</text>
-        <rect x="104" y="93" width="26" height="16" rx="3" fill="#00c9a0" opacity=".5"/>
-        <text x="6" y="128" fill="#b0bcda" font-size="8.5" font-family="sans-serif">Fix CFP</text>
-        <rect x="44" y="117" width="26" height="14" rx="3" fill="#4f9cf9" opacity=".5"/>
-        <text x="6" y="152" fill="#b0bcda" font-size="8.5" font-family="sans-serif">Sauces</text>
-        <rect x="104" y="141" width="56" height="14" rx="3" fill="#00c9a0" opacity=".7"/>
-        <!-- Milestone line -->
-        <rect x="136" y="56" width="2" height="110" fill="#7b61ff" opacity=".65"/>
-        <circle cx="137" cy="65" r="6" fill="#7b61ff"/>
-        <text x="134" y="69" fill="white" font-size="7" font-weight="bold">24</text>
-        <circle cx="137" cy="101" r="4" fill="#7b61ff"/>
-        <circle cx="137" cy="149" r="4" fill="#7b61ff"/>
-        <!-- Time log section -->
-        <rect y="170" width="240" height="30" fill="#141820"/>
-        <text x="6" y="182" fill="#eef0f7" font-size="9" font-weight="700" font-family="sans-serif">Time log</text>
-        <text x="6" y="196" fill="#6e7e9e" font-size="8" font-family="sans-serif">Fix CFP · 2026-04-17 · 0h 8m · Timer</text>
-      </svg>
-    </div>
-  </div>
+<!-- MY SPACE -->
+<div class="ht-step">
+<div class="ht-step-h" onclick="this.closest('.ht-step').classList.toggle('open')">
+  <div class="ht-num">9</div><div class="ht-title">My Space & My Day</div><span class="ht-arr">›</span>
+</div>
+<div class="ht-body">
+  <div class="ht-row"><span class="ht-key">My Space</span><span>Personal Gantt showing only your tasks + a day-view panel with logged hours and scheduled work.</span></div>
+  <div class="ht-row"><span class="ht-key">‹ › nav</span><span>Navigate days in the day panel. ↺ returns to today.</span></div>
+  <div class="ht-row"><span class="ht-key">Capacity bar</span><span>Shows your daily load vs capacity (green → yellow → red as you approach full capacity).</span></div>
+  <div class="tip">The ▶ Start button in the Timer panel sets a task to <b>In Progress</b> and starts timing. Only the currently-running task is expanded in the panel; others show compact buttons.</div>
+</div>
+</div>
 
-  ${admin?`
-  <div class="ht-section" style="border:2px solid var(--acc)">
-    <div class="ht-h2">⚙ Admin</div>
-    <div class="ht-2col" style="overflow:hidden">
-      <div>
-        <div class="ht-h3">Resources page</div>
-        <div class="ht-p">
-          <b>🔑 Reset password</b> — resets to default (user changes on next login)<br>
-          <b>☆/★ Toggle admin</b> — grant/revoke admin rights<br>
-          <b>🔧 Fix Data</b> — recalculate resHours + teamIds for all tasks<br>
-          <b>🗑 Clear Logs</b> — remove all time logs (testing only)
-        </div>
-        <div class="ht-h3">Permissions</div>
-        <div class="ht-p">
-          <span class="ht-badge" style="background:rgba(123,97,255,.2);color:#7b61ff;border:1px solid #7b61ff55">Admin</span> full access everywhere<br>
-          <span class="ht-badge" style="background:rgba(79,156,249,.15);color:#4f9cf9;border:1px solid #4f9cf955">Proj. Mgmt / Team Leader</span> edit Gantt tasks<br>
-          <span class="ht-badge" style="background:rgba(110,126,158,.1);color:#6e7e9e;border:1px solid rgba(255,255,255,.1)">All others</span> read-only Gantt + timer
-        </div>
-      </div>
-      <svg viewBox="0 0 240 160" class="ht-img" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:hidden;contain:strict">
-        <rect width="240" height="160" fill="#0d1018" rx="6"/>
-        <text x="12" y="18" fill="#eef0f7" font-size="10" font-weight="700" font-family="sans-serif">Resources</text>
-        <rect x="8" y="25" width="224" height="28" rx="5" fill="#141820" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <circle cx="24" cy="39" r="10" fill="#4f9cf9" opacity=".8"/>
-        <text x="20" y="43" fill="white" font-size="8" font-weight="700">PP</text>
-        <text x="40" y="36" fill="#eef0f7" font-size="9" font-weight="600" font-family="sans-serif">Pedro Pereira</text>
-        <text x="40" y="48" fill="#6e7e9e" font-size="8" font-family="sans-serif">Project Manager · 8h/day</text>
-        <text x="185" y="36" fill="#f0a928" font-size="12">★</text>
-        <text x="200" y="36" fill="#6e7e9e" font-size="12">🔑</text>
-        <rect x="8" y="58" width="224" height="28" rx="5" fill="#141820" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
-        <circle cx="24" cy="72" r="10" fill="#00c9a0" opacity=".8"/>
-        <text x="20" y="76" fill="white" font-size="8" font-weight="700">AB</text>
-        <text x="40" y="69" fill="#eef0f7" font-size="9" font-weight="600" font-family="sans-serif">António Barbosa</text>
-        <text x="40" y="81" fill="#6e7e9e" font-size="8" font-family="sans-serif">After-Sales · 8h/day</text>
-        <text x="185" y="69" fill="#6e7e9e" font-size="12">☆</text>
-        <text x="200" y="69" fill="#6e7e9e" font-size="12">🔑</text>
-        <rect x="8" y="98" width="108" height="24" rx="5" fill="rgba(240,82,82,.12)" stroke="#f05252" stroke-width="1"/>
-        <text x="22" y="114" fill="#f05252" font-size="9" font-weight="700" font-family="sans-serif">🗑 Clear Logs</text>
-        <rect x="122" y="98" width="110" height="24" rx="5" fill="rgba(79,156,249,.1)" stroke="rgba(79,156,249,.3)" stroke-width="1"/>
-        <text x="136" y="114" fill="#4f9cf9" font-size="9" font-weight="700" font-family="sans-serif">🔧 Fix Data</text>
-        <text x="12" y="148" fill="#6e7e9e" font-size="7.5" font-family="sans-serif">★ = admin · 🔑 = reset password · ☆ = not admin</text>
-      </svg>
-    </div>
-  </div>`:''}
-  `;
+</div>
+
+<scr` + `ipt>
+// How To Use helpers
+let _htTrn=false,_htTs=0,_htTInt=null;
+function htTimerStart(){
+  const sel=document.getElementById('ht-timer-sel');
+  if(!sel?.value){document.getElementById('ht-timer-log').textContent='⚠ Select a task first';return;}
+  const t=TASKS.find(x=>x.id===sel.value);
+  document.getElementById('ht-timer-task').textContent=t?.name||'?';
+  document.getElementById('ht-timer-state').textContent='In Progress ●';
+  document.getElementById('ht-timer-state').style.color='var(--acc)';
+  if(!_htTrn){_htTrn=true;_htTs=Date.now();
+    _htTInt=setInterval(()=>{const s=Math.floor((Date.now()-_htTs)/1000);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;const el=document.getElementById('ht-timer-display');if(el)el.textContent=[h,m,sc].map(x=>x.toString().padStart(2,'0')).join(':');},1000);}
+  document.getElementById('ht-timer-log').textContent='▶ Timer started for "'+t?.name+'"';
+}
+function htTimerPause(){
+  if(!_htTrn)return;clearInterval(_htTInt);_htTrn=false;
+  document.getElementById('ht-timer-state').textContent='Paused';
+  document.getElementById('ht-timer-state').style.color='var(--warn)';
+  const s=Math.floor((Date.now()-_htTs)/1000);document.getElementById('ht-timer-log').textContent='⏸ '+Math.floor(s/60)+'m '+s%60+'s';
+}
+function htTimerDone(){
+  clearInterval(_htTInt);_htTrn=false;
+  const h=((Date.now()-_htTs)/3600000).toFixed(2);
+  document.getElementById('ht-timer-state').textContent='Done ✓';
+  document.getElementById('ht-timer-state').style.color='var(--ok)';
+  const el=document.getElementById('ht-timer-display');if(el)el.textContent='00:00:00';
+  document.getElementById('ht-timer-log').textContent='✓ Simulated: '+h+'h logged';
+  _htTs=Date.now();
+}
+let _htSubs=[{name:'Check wiring',hours:3,status:'done'},{name:'Install sensors',hours:5,status:'todo'}];
+const _htPH=6;
+function htRenderSubs(){
+  const el=document.getElementById('ht-sub-list');if(!el)return;
+  el.innerHTML=_htSubs.map((s,i)=>{
+    const done=s.status==='done';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--bg3);border-radius:6px;opacity:'+(done?.55:1)+'">'
+      +'<button onclick="_htSubs['+i+'].status=_htSubs['+i+'].status===\'done\'?\'todo\':\'done\';htRenderSubs()" style="width:11px;height:11px;border-radius:50%;border:1.5px solid '+(done?'var(--ok)':'var(--fg3)')+';background:'+(done?'var(--ok)':'transparent')+';cursor:pointer;padding:0;flex-shrink:0"></button>'
+      +'<span style="font-size:11px;color:'+(done?'var(--fg3)':'var(--fg1)')+';flex:1;'+(done?'text-decoration:line-through':'')+'">'+(s.name||'')+'</span>'
+      +'<span style="font-size:10px;color:var(--fg3)">'+s.hours+'h</span>'
+      +'<button onclick="_htSubs.splice('+i+',1);htRenderSubs()" style="background:none;border:none;cursor:pointer;color:var(--fg3);font-size:12px;padding:0">✕</button>'
+      +'</div>';
+  }).join('');
+  const done=_htSubs.filter(s=>s.status==='done').length;
+  const stH=_htSubs.reduce((a,s)=>a+s.hours,0);
+  const tot=document.getElementById('ht-sub-total');if(tot)tot.textContent=(_htPH+stH)+'h';
+  const prog=_htSubs.length?Math.round(done/_htSubs.length*100):0;
+  const lbl=document.getElementById('ht-sub-prog');if(lbl)lbl.textContent='('+done+'/'+_htSubs.length+' done, '+prog+'% progress)';
+}
+function htAddSub(){_htSubs.push({name:'New subtask',hours:4,status:'todo'});htRenderSubs();}
+htRenderSubs();
+<\/script>
+`;
 }
 
 // ============================================================
@@ -6111,7 +6510,7 @@ window._showHoldDialog=(taskId)=>{
           if(t2){ t2.status='hold'; t2.holdBlocker=reason||null; }
           addLog({type:'status',task:'${t.name.replace(/'/g,"\'")}',from:'',to:'On Hold'+(reason?' — '+reason:'')});
           notify('On hold'+(reason?' — '+reason:''),'warn');
-          persistState(['tasks']); renderGantt(); renderDash();
+          persistState(['tasks'],{tasks:['${taskId}']}); renderGantt(); renderDash();
           document.getElementById('hold-dialog').remove();
         ">⏸ Put on hold</button>
       </div>
@@ -6188,13 +6587,8 @@ window._sortMenuGantt=(e)=>{
 
 window._onProjSelectorChange=(projId)=>{
   S._activeProjId=projId||null;
-  if(projId){
-    S.viewBy='project'; S.vbFilter=[projId];
-    document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));
-    const btn=document.getElementById('vb-pr'); if(btn) btn.classList.add('on');
-  } else {
-    S.vbFilter=[];
-  }
+  // Project selector only sets _activeProjId — never touches vbFilter
+  // (vbFilter belongs to the resource/team/project view-by filter)
   renderGantt();
 };
 
@@ -6224,19 +6618,20 @@ function taskHasMilestone(taskId){
 }
 
 function _checkMilestoneAutoComplete(){
-  let changed=false;
+  let changed=false; const _changedIds=[];
   MILESTONES.forEach(ms=>{
-    if(!ms.dayIdx||ms.dayIdx>GANTT_TODAY) return; // milestone date not yet passed
+    if(!ms.dayIdx||ms.dayIdx>GANTT_TODAY) return;
     (ms.taskIds||[]).forEach(tid=>{
       const t=TASKS.find(x=>x.id===tid);
       if(t&&t.status==='ready'){
         t.status='done';
+        _changedIds.push(tid);
         addLog({type:'status',task:t.name,from:'Ready for MS',to:'Done (milestone passed)'});
         changed=true;
       }
     });
   });
-  if(changed){ persistState(['tasks']); renderGantt&&renderGantt(); renderDash&&renderDash(); }
+  if(changed){ persistState(['tasks'],{tasks:_changedIds}); renderGantt&&renderGantt(); renderDash&&renderDash(); }
 }
 
 window._msSwitchTab=(tab)=>{
@@ -6252,7 +6647,7 @@ function _saveSessionState(){
     sessionStorage.setItem('pg_ui_'+S_USER.resId, JSON.stringify({
       page: S.page,
       viewBy: S.viewBy,
-      vbFilter: S.vbFilter,
+      vbFilter: S.vbFilter.filter(x=>x!=='__none__'), // don't persist sentinel
       statusFilter: S.statusFilter,
       offset: S.offset,
       _sortBy: S._sortBy||'chrono',
@@ -6270,7 +6665,7 @@ function _restoreSessionState(){
     if(!raw) return;
     const saved=JSON.parse(raw);
     if(saved.viewBy) S.viewBy=saved.viewBy;
-    if(saved.vbFilter) S.vbFilter=saved.vbFilter;
+    if(saved.vbFilter) S.vbFilter=(saved.vbFilter||[]).filter(x=>x!=='__none__');
     if(saved.statusFilter) S.statusFilter=saved.statusFilter;
     if(saved.offset) S.offset=saved.offset;
     if(saved._sortBy) S._sortBy=saved._sortBy;
@@ -6304,6 +6699,313 @@ window.addEventListener('beforeunload', ()=>{
   } catch(e){}
   _pendingSave={};
 });
+
+
+window._cycleSubtaskStatus=(taskId,stId)=>{
+  const t=TASKS.find(x=>x.id===taskId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===stId); if(!st) return;
+  const order=['todo','doing','paused','done'];
+  st.status=order[(order.indexOf(st.status||'todo')+1)%order.length];
+  // Auto-update parent progress
+  const sts=t.subtasks.filter(s=>s.name?.trim());
+  if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  addLog({type:'edit',task:t.name,from:'',to:`subtask "${st.name}" → ${SLABELS[st.status]||st.status}`});
+  persistState(['tasks'],{tasks:[taskId]});
+  renderGantt();
+};
+
+// ── SUBTASK EDITOR MODAL ──────────────────────────────────────────
+let _stEditParentId=null, _stEditStId=null;
+
+window._openSubtaskEditor=(parentId, stId)=>{
+  const t=TASKS.find(x=>x.id===parentId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===stId); if(!st) return;
+  _stEditParentId=parentId; _stEditStId=stId;
+  const modal=document.getElementById('m-subtask');
+  if(!modal){
+    // Create modal inline
+    const div=document.createElement('div');
+    div.id='m-subtask';
+    div.className='mbg';
+    div.innerHTML=`<div class="modal" style="width:420px;max-width:95vw">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-size:13px;font-weight:700;color:var(--fg0)" id="mst-title">Edit Subtask</span>
+        <button onclick="CM('m-subtask')" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--fg3)">✕</button>
+      </div>
+      <div class="fg"><label class="fl">Name *</label><input class="fi" id="mst-name" placeholder="Subtask name"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="fl">Resource</label><select class="fi" id="mst-res"><option value="">— none —</option></select></div>
+        <div class="fg"><label class="fl">Hours</label><input class="fi" type="number" id="mst-hours" min="0.5" step="0.5" placeholder="0"></div>
+        <div class="fg"><label class="fl">Deadline</label><input class="fi" type="date" id="mst-deadline"></div>
+      </div>
+      <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="mst-notes" rows="2" style="resize:none" placeholder="Optional notes…"></textarea></div>
+      <div class="fg" style="margin-bottom:0">
+        <label class="fl">Status</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${['todo','doing','paused','done'].map(s=>`<button onclick="document.querySelectorAll('.mst-stat').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('mst-stat-val').value='${s}'" class="btn btn-sm mst-stat" style="font-size:10px">${SLABELS[s]||s}</button>`).join('')}
+          <input type="hidden" id="mst-stat-val" value="todo">
+        </div>
+      </div>
+      <div class="mf">
+        <button class="btn btn-sm" style="margin-right:auto;background:rgba(240,82,82,.12);color:var(--danger);border-color:var(--danger)" onclick="window._deleteSubtask()">Delete</button>
+        <button class="btn btn-sm" onclick="CM('m-subtask')">Cancel</button>
+        <button class="btn btn-p btn-sm" onclick="window._saveSubtaskEditor()">Save</button>
+      </div>
+    </div>`;
+    div.addEventListener('mousedown',e=>{if(e.target===div){div._mousedownOnBg=true;}});
+    div.addEventListener('click',e=>{if(e.target===div&&div._mousedownOnBg){CM('m-subtask');}div._mousedownOnBg=false;});
+    document.body.appendChild(div);
+    // Populate resources
+    const sel=document.getElementById('mst-res');
+    sel.innerHTML='<option value="">— none —</option>'+RESOURCES.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  }
+  // Fill fields
+  document.getElementById('mst-name').value=st.name||'';
+  document.getElementById('mst-res').value=st.resId||'';
+  document.getElementById('mst-hours').value=st.hours||'';
+  // start date not shown in editor
+  document.getElementById('mst-deadline').value=st.deadline||'';
+  document.getElementById('mst-notes').value=st.notes||'';
+  const statVal=st.status||'todo';
+  document.getElementById('mst-stat-val').value=statVal;
+  document.querySelectorAll('.mst-stat').forEach(b=>b.classList.toggle('on',b.textContent.trim()===(SLABELS[statVal]||statVal)));
+  OM('m-subtask');
+};
+
+window._saveSubtaskEditor=()=>{
+  const t=TASKS.find(x=>x.id===_stEditParentId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===_stEditStId); if(!st) return;
+  const name=document.getElementById('mst-name').value.trim();
+  if(!name){notify('Name required','warn');return;}
+  const oldSt=JSON.parse(JSON.stringify(st));
+  st.name=name;
+  st.resId=document.getElementById('mst-res').value||null;
+  st.hours=parseFloat(document.getElementById('mst-hours').value)||null;
+  // start is computed by autoSchedule, not set manually
+  st.deadline=document.getElementById('mst-deadline').value||null;
+  st.notes=document.getElementById('mst-notes').value||'';
+  st.status=document.getElementById('mst-stat-val').value||'todo';
+  // Recompute dur
+  if(st.start&&st.hours){
+    const cap=getRes(st.resId||t.resId)?.dailyCap||HPD;
+    st.dur=Math.max(1,Math.ceil(st.hours/cap));
+  }
+  // Log changes
+  const diffs=[];
+  if(oldSt.name!==st.name) diffs.push(`name: "${oldSt.name}" → "${st.name}"`);
+  if((oldSt.status||'todo')!==(st.status||'todo')) diffs.push(`status: ${SLABELS[oldSt.status]||oldSt.status} → ${SLABELS[st.status]||st.status}`);
+  if(oldSt.hours!==st.hours) diffs.push(`hours: ${oldSt.hours||0}h → ${st.hours||0}h`);
+  if(oldSt.deadline!==st.deadline) diffs.push(`deadline: ${oldSt.deadline||'none'} → ${st.deadline||'none'}`);
+  if(diffs.length) addLog({type:'edit',task:`${t.name} › ${st.name}`,from:'',to:diffs.join(' · ')});
+  // Auto-update parent progress
+  const sts=t.subtasks.filter(s=>s.name?.trim());
+  if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  persistState(['tasks'],{tasks:[_stEditParentId]});
+  CM('m-subtask');
+  renderGantt();
+  notify(`"${st.name}" saved ✓`,'success');
+};
+
+window._deleteSubtask=()=>{
+  if(!confirm('Delete this subtask?')) return;
+  const t=TASKS.find(x=>x.id===_stEditParentId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===_stEditStId);
+  addLog({type:'delete',task:`${t.name} › ${st?.name||''}`,from:'',to:'subtask deleted'});
+  t.subtasks=(t.subtasks||[]).filter(s=>s.id!==_stEditStId);
+  const sts=t.subtasks.filter(s=>s.name?.trim());
+  if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  persistState(['tasks'],{tasks:[_stEditParentId]});
+  CM('m-subtask');
+  renderGantt();
+};
+
+window._showSubCtx=(e,parentId,stId)=>{
+  const t=TASKS.find(x=>x.id===parentId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===stId); if(!st) return;
+  const old=document.getElementById('sub-ctx'); if(old) old.remove();
+  const menu=document.createElement('div');
+  menu.id='sub-ctx';
+  menu.style.cssText='position:fixed;z-index:500;background:var(--bg2);border:1px solid var(--bd2);border-radius:8px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.5);min-width:160px';
+  menu.style.left=Math.min(e.clientX,window.innerWidth-170)+'px';
+  menu.style.top=Math.min(e.clientY,window.innerHeight-220)+'px';
+  const stCol=SCOLS[st.status]||'var(--fg3)';
+  menu.innerHTML=`
+    <div style="padding:5px 10px;font-size:9px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px">⤷ ${st.name.slice(0,24)}${st.name.length>24?'…':''}</div>
+    <div style="height:1px;background:var(--bd);margin:2px 0"></div>
+    <div onclick="window._openSubtaskEditor('${parentId}','${stId}');this.closest('#sub-ctx').remove()" class="ci">✎ Edit subtask</div>
+    <div style="height:1px;background:var(--bd);margin:2px 0"></div>
+    ${['todo','doing','paused','done'].map(s=>`<div onclick="window._setSubStatusDirect('${parentId}','${stId}','${s}');this.closest('#sub-ctx').remove()" class="ci" style="color:${SCOLS[s]||'var(--fg2)'}">${s===st.status?'✓ ':''} ${SLABELS[s]||s}</div>`).join('')}
+    <div style="height:1px;background:var(--bd);margin:2px 0"></div>
+    <div onclick="if(confirm('Delete subtask?')){_stEditParentId='${parentId}';_stEditStId='${stId}';window._deleteSubtask();}this.closest('#sub-ctx')?.remove()" class="ci" style="color:var(--danger)">🗑 Delete</div>`;
+  document.body.appendChild(menu);
+  setTimeout(()=>{const cl=()=>{menu.remove();document.removeEventListener('click',cl);};document.addEventListener('click',cl);},50);
+};
+
+window._setSubStatusDirect=(parentId,stId,status)=>{
+  const t=TASKS.find(x=>x.id===parentId); if(!t) return;
+  const st=(t.subtasks||[]).find(s=>s.id===stId); if(!st) return;
+  addLog({type:'status',task:`${t.name} › ${st.name}`,from:SLABELS[st.status]||st.status,to:SLABELS[status]||status});
+  st.status=status;
+  const sts=t.subtasks.filter(s=>s.name?.trim());
+  if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  persistState(['tasks'],{tasks:[parentId]});
+  renderGantt();
+};
+// ── SUBTASKS ──────────────────────────────────────────────────
+// Subtask: {id, name, resId, hours, status('todo'|'doing'|'paused'|'done'), deadline, notes}
+let _curSubtasks = [];
+let _showSubtasks = true; // Gantt toggle
+
+function _renderSubtaskList(){
+  const wrap = document.getElementById('mt-sub-list');
+  const count = document.getElementById('mt-sub-count');
+  if(!wrap) return;
+  const done = _curSubtasks.filter(s=>s.status==='done').length;
+  if(count) count.textContent = _curSubtasks.length ? `(${done}/${_curSubtasks.length} done)` : '';
+  if(!_curSubtasks.length){
+    wrap.innerHTML = '<div style="font-size:10px;color:var(--fg3);padding:4px 0">No subtasks — click + Add to create</div>';
+    return;
+  }
+  wrap.innerHTML = _curSubtasks.map((st,i)=>{
+    const isDone = st.status==='done';
+    const res = getRes(st.resId);
+    return `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:6px;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:7px;border:1px solid ${isDone?'var(--bd)':'var(--bd2)'};${isDone?'opacity:.55':''}">
+      <!-- Status dot -->
+      <button onclick="window._cycleSubStatus(${i})" title="${SLABELS[st.status]||st.status}"
+        style="width:13px;height:13px;border-radius:50%;border:2px solid ${SCOLS[st.status]||'var(--fg3)'};background:${isDone?SCOLS[st.status]:'transparent'};padding:0;cursor:pointer;flex-shrink:0"></button>
+      <!-- Name -->
+      <input type="text" value="${(st.name||'').replace(/"/g,'&quot;')}"
+        oninput="window._renameSubtask(${i},this.value)"
+        style="background:none;border:none;outline:none;font-size:11px;color:${isDone?'var(--fg3)':'var(--fg0)'};font-family:var(--font);${isDone?'text-decoration:line-through':''}; min-width:0"
+        placeholder="Subtask name *">
+      <!-- Resource (grouped by team) -->
+      <select onchange="window._setSubRes(${i},this.value)"
+        class="fi" style="font-size:10px;min-width:130px;max-width:180px">
+        <option value="">— Resource —</option>
+        ${(()=>{
+          const byTeam={};
+          RESOURCES.forEach(r=>{
+            const teamId=(r.teams||[])[0]||'__none__';
+            if(!byTeam[teamId]) byTeam[teamId]=[];
+            byTeam[teamId].push(r);
+          });
+          return Object.entries(byTeam).map(([tid,res])=>{
+            const tName=tid==='__none__'?'No team':(TEAMS.find(t=>t.id===tid)?.name||tid);
+            const opts=res.map(r=>`<option value="${r.id}"${st.resId===r.id?' selected':''}>${r.name}</option>`).join('');
+            return `<optgroup label="${tName}">${opts}</optgroup>`;
+          }).join('');
+        })()}
+      </select>
+      <!-- Hours -->
+      <input type="number" value="${st.hours||''}" min="0.5" step="0.5"
+        oninput="window._setSubHours(${i},this.value)"
+        style="width:42px;font-size:10px;padding:2px 4px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--fg2);font-family:var(--mono)"
+        placeholder="h">
+      <!-- Deadline -->
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <span style="font-size:8px;color:var(--fg3);padding-left:1px">Deadline</span>
+        <input type="date" value="${st.deadline||''}"
+          onchange="window._setSubDl(${i},this.value)"
+          style="font-size:9px;padding:2px 4px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--fg2);width:108px">
+      </div>
+      <!-- Delete -->
+      <button onclick="window._delSubtask(${i})"
+        style="background:none;border:none;cursor:pointer;color:var(--fg3);font-size:13px;padding:0;line-height:1" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+}
+
+window._cycleSubStatus = (i)=>{
+  const order=['todo','doing','paused','done'];
+  const st=_curSubtasks[i]; if(!st) return;
+  const next=order[(order.indexOf(st.status||'todo')+1)%order.length];
+  st.status=next;
+  _renderSubtaskList();
+  _autoSaveSubtasks();
+};
+window._renameSubtask   = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].name=v; clearTimeout(window._rnT); window._rnT=setTimeout(_autoSaveSubtasks,600); } };
+window._setSubRes       = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].resId=v||null; _renderSubtaskList(); _autoSaveSubtasks(); } };
+window._setSubHours     = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].hours=parseFloat(v)||null; _updateTotalWithSubs(); _autoSaveSubtasks(); } };
+window._setSubDl        = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].deadline=v||null; _autoSaveSubtasks(); } };
+window._setSubStart     = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].start=v?dateToIdx(v):null; _autoSaveSubtasks(); } };
+// Auto-save subtask changes to TASKS + Firebase while modal is open
+window._autoSaveSubtasks=()=>{
+  if(!S.editId) return;
+  const t=TASKS.find(x=>x.id===S.editId); if(!t) return;
+  t.subtasks=_curSubtasks.filter(st=>st.name?.trim()).map(st=>({...st,name:st.name.trim()}));
+  const sts=t.subtasks; if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  persistState(['tasks'],{tasks:[S.editId]});
+};
+window._delSubtask      = (i)=>{ _curSubtasks.splice(i,1); _renderSubtaskList(); _updateTotalWithSubs(); _autoSaveSubtasks(); };
+
+window._addSubtask = ()=>{
+  _curSubtasks.push({id:'st'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    name:'', status:'todo', resId:null, hours:null, start:null, deadline:null, notes:''});
+  _renderSubtaskList();
+  _updateTotalWithSubs();
+  _autoSaveSubtasks();
+  const inputs = document.querySelectorAll('#mt-sub-list input[type=text]');
+  if(inputs.length) inputs[inputs.length-1].focus();
+};
+
+function _loadSubtasksIntoModal(subtasks){
+  _curSubtasks = JSON.parse(JSON.stringify((subtasks||[]).map(st=>({
+    id:st.id||('st'+Date.now()),
+    name:st.name||'',
+    status:st.status||(st.done?'done':'todo'),
+    resId:st.resId||null,
+    hours:st.hours||null,
+    start:st.start||null,
+    deadline:st.deadline||null,
+    notes:st.notes||''
+  }))));
+  _renderSubtaskList();
+}
+
+// Gantt toggle
+window.toggleSubtasks = ()=>{
+  _showSubtasks = !_showSubtasks;
+  const btn=document.getElementById('btn-show-subtasks');
+  if(btn){ btn.style.opacity=_showSubtasks?'1':'0.4'; btn.title=_showSubtasks?'Hide subtasks':'Show subtasks'; }
+  renderGantt();
+};
+
+// ── CLEAR FILTERS ────────────────────────────────────────────────
+window.clearAllFilters=()=>{
+  S.statusFilter=['todo','doing','paused','ready','hold'];
+  S.selectedTags=[];
+  S.vbFilter=[];
+  const gs=document.getElementById('g-search'); if(gs) gs.value='';
+  buildSFChips(); buildTagPanel(); buildVBPanel&&buildVBPanel();
+  renderGantt(); renderTable&&renderTable();
+  notify('Filters cleared','success');
+};
+
+// ── DESELECT ALL VB ──────────────────────────────────────────────
+window.deselectAllVB=()=>{
+  // '__none__' sentinel = nothing selected = show nothing
+  S.vbFilter=['__none__'];
+  // Re-render the panel in place so checkboxes reflect the new state
+  const _p=document.getElementById('vb-sel-panel');
+  if(_p&&_p.style.display!=='none'){ _p.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false); }
+  renderGantt();
+};
+
+// ── TOTAL W/ SUBTASKS UPDATE ─────────────────────────────────────
+window._updateTotalWithSubs=()=>{
+  const h=parseFloat(document.getElementById('mt-h-tot').value)||0;
+  const stH=_curSubtasks.filter(st=>st.name?.trim()).reduce((a,s)=>a+(s.hours||0),0);
+  const el=document.getElementById('mt-h-total-sub');
+  if(el){
+    if(stH>0) el.value=`${h+stH}h (${h}h + ${stH}h subtasks)`;
+    else el.value=`${h}h`;
+  }
+};
+
+// ── GENERATE REPORT ──────────────────────────────────────────────
+window.generateReport=()=>{
+  notify('Report — em breve: define o que deves incluir no relatório','info');
+};
 // ============================================================
 // INIT
 // ============================================================
@@ -6319,6 +7021,8 @@ window.addEventListener('beforeunload', ()=>{
   await initLogin();
 
   // Now render app
+  // Clear any stuck __none__ sentinel from sessionStorage
+  try{ const _sk='pg_ui_'+(S_USER?.resId||''); const _ss=sessionStorage.getItem(_sk); if(_ss){ const _sd=JSON.parse(_ss); if(_sd.vbFilter?.includes('__none__')){ _sd.vbFilter=[]; sessionStorage.setItem(_sk,JSON.stringify(_sd)); S.vbFilter=[]; } } }catch(e){}
   buildSFChips(); buildTagPanel(); buildTagSel();
   // Show Resources/Teams/Logs only for admins
   if(isAdmin()){
@@ -6333,6 +7037,12 @@ window.addEventListener('beforeunload', ()=>{
   if(window.innerWidth<=768){ nav('myspace'); } else { renderDash(); }
   setInterval(()=>persistState(['meta']),30000);
   _loadTimerState();
+  // Fix: any task in 'doing' without an active timer session → set to 'paused'
+  TASKS.forEach(t=>{
+    if(t.status==='doing' && _timerState.taskId!==t.id){
+      t.status='paused';
+    }
+  });
   if(_timerState.taskId&&!_timerState.paused) _startTimerTick();
   // Mobile banner: update every second
   setInterval(()=>{
