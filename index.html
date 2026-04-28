@@ -3069,8 +3069,8 @@ function openAddTask(){
   setTM('total');
   _taskTeams=[];
   renderTeamResList();
-  // Show associated milestones with add button
-  _loadSubtasksIntoModal(t.subtasks);
+  // New task has no subtasks yet
+  _loadSubtasksIntoModal([]);
   _updateTotalWithSubs();
   window._updateTaskMilestones();
   OM('m-task');
