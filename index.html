@@ -1789,7 +1789,8 @@ function renderGantt(){
   else if(PROJECTS.length) PROJ=PROJECTS[0];
   else PROJ={name:'PAZZI',deadline:null};
   const pdl=PROJ.deadline?dateToIdx(PROJ.deadline):null;
-  const allEnds=TASKS.map(t=>tEnd(t)).filter(Boolean);
+  const _projTasks=S._activeProjId?TASKS.filter(t=>t.projId===S._activeProjId):TASKS;
+  const allEnds=_projTasks.map(t=>tEnd(t)).filter(Boolean);
   const lastEnd=allEnds.length?Math.max(...allEnds):null;
   document.getElementById('pdl-v').textContent=pdl?sd(pdl):'Not set';
   const projNameEl=document.getElementById('proj-name-disp'); if(projNameEl) projNameEl.textContent=PROJ.name||'PAZZI';
@@ -1972,6 +1973,7 @@ function renderGantt(){
       H+=`<tr class="gh-row" style="height:18px">
         <td colspan="3" class="stn" style="padding:3px 8px;font-size:9px;font-weight:700;color:var(--fg2);letter-spacing:.5px;text-transform:uppercase;background:rgba(26,32,46,.9);border-bottom:1px solid var(--bd);position:sticky;left:0;z-index:6">
           <span style="width:6px;height:6px;border-radius:2px;background:${row.color};display:inline-block;margin-right:5px;vertical-align:middle"></span>${row.label}
+          ${resId&&canEdit?`<button onclick="event.stopPropagation();autoScheduleRes('${resId}')" title="Auto-schedule this resource" style="margin-left:6px;padding:0 5px;height:14px;font-size:8px;border-radius:3px;border:1px solid var(--acc3);background:rgba(0,201,160,.15);color:var(--acc3);cursor:pointer;vertical-align:middle;line-height:14px">⚡</button>`:''}
           ${resId?`<span style="font-size:8px;color:var(--fg3);margin-left:4px;font-weight:400;text-transform:none">click day to toggle</span>`:''}
         </td>
         ${dayCells}
@@ -3086,7 +3088,7 @@ function openEditTask(id){
   if(!_isCont&&t.start){ const _sd=gDate(t.start),_ed=gDate(t.start+(t.dur||1)-1);const _fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const _sse=document.getElementById('mt-s-date');const _ese=document.getElementById('mt-e-date');if(_sse)_sse.value=_fmt(_sd);if(_ese)_ese.value=_fmt(_ed); }
   document.getElementById('mt-n').value=t.name;
   document.getElementById('mt-tag').value=(t.tags||[]).join(', ');
-  document.getElementById('mt-h-tot').value=t.timeMode==='daily'?(t.hpd||HPD)*(t.dur||1):t.hours||HPD;
+  document.getElementById('mt-h-tot').value=t.timeMode==='daily'?(t.hpd||HPD)*(t.dur||1):(t.hours??0);
   document.getElementById('mt-h-day').value=t.hpd||HPD;
   document.getElementById('mt-s').value=t.start||GANTT_TODAY;
   document.getElementById('mt-d').value=t.dur||1;
@@ -3137,7 +3139,7 @@ window.saveTask=()=>{
   const tags=document.getElementById('mt-tag').value.split(',').map(x=>x.trim()).filter(Boolean);
   const tm=S.tm;
   const hpd=parseFloat(document.getElementById('mt-h-day').value)||HPD;
-  const htot=parseFloat(document.getElementById('mt-h-tot').value)||HPD;
+  const htot=parseFloat(document.getElementById('mt-h-tot').value)||0;
   const dur=parseInt(document.getElementById('mt-d').value)||1;
   const hours=tm==='daily'?hpd*dur:htot;
   // Build flat arrays for compat
@@ -3796,7 +3798,7 @@ window.autoScheduleFor=(opts={})=>{
   const label=[...(resIds||[]).map(id=>getRes(id)?.name||id),...(teamIds||[]).map(id=>getTeam(id)?.name||id)].join(', ');
   if(!confirm('Auto-schedule for: '+label+'?\n\nThis will reschedule their tasks. Continue?')) return;
   const _asProjId=S._activeProjId||null;
-  const _asTasks2=TASKS.filter(t=>!_asProjId||!t.projId||t.projId===_asProjId);
+  const _asTasks2=TASKS.filter(t=>!_asProjId||t.projId===_asProjId);
   let moved=0; const _movedIds=[];
   targetRes.forEach(resId=>{
     const cap=getRes(resId)?.dailyCap||HPD;
@@ -3833,7 +3835,7 @@ window.autoScheduleFor=(opts={})=>{
       const ns=startDay||item.origStart||scheduleFrom;
       const nd=Math.max(1,(endDay||ns)-ns+1);
       if(item.isSub){if(ns!==item.st.start){item.st.start=ns;item.st.dur=nd;moved++;_movedIds.push(item.t.id);}}
-      else{if(ns!==item.t.start||nd!==item.t.dur){addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});item.t.start=ns;item.t.dur=nd;moved++;_movedIds.push(item.t.id);}}
+      else{if(ns!==item.t.start||nd!==item.t.dur){addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});moved++;}item.t.start=ns;item.t.dur=nd;_movedIds.push(item.t.id);}
     });
   });
   notify('Auto-schedule ('+label+'): '+moved+' task'+(moved!==1?'s':'')+' rescheduled','success');
@@ -3841,101 +3843,110 @@ window.autoScheduleFor=(opts={})=>{
   renderGantt(); renderDash();
 };
 
-window.autoSchedule=()=>{
-  if(!confirm('Auto-schedule: pack tasks from today by hours, filling daily capacity in order.\n\nContinue?')) return;
+// Shared scheduling engine used by ⚡ Auto and per-resource ⚡
+function _scheduleResource(resId, tasks){
+  const cap=(getRes(resId)?.dailyCap)||HPD;
+  const alloc={};
 
-  // Collect resources from active project (or all if no project selected)
-  const _asProjId=S._activeProjId||null;
-  const _asTasks=TASKS.filter(t=>!_asProjId||t.projId===_asProjId);
-  const allResIds=new Set();
-  _asTasks.forEach(t=>{
-    if(t.resId) allResIds.add(t.resId);
-    (t.subtasks||[]).forEach(st=>{ if(st.resId) allResIds.add(st.resId); });
+  // Seed doing tasks (locked in place)
+  TASKS.forEach(t=>{
+    if(t.resId!==resId||t.status!=='doing'||!t.start) return;
+    let rem=tHours(t), d=t.start;
+    while(rem>0.001&&d<t.start+200){
+      if(!isNW(d,t.id,resId)){ const p=Math.min(rem,cap); alloc[d]=(alloc[d]||0)+p; rem-=p; }
+      d++;
+    }
   });
 
-  let moved=0; const _movedIds=[];
-  allResIds.forEach(resId=>{
-    const cap=getRes(resId)?.dailyCap||HPD;
-    const dayAlloc={};
-    const _activeProjObj=_asProjId?PROJECTS.find(p=>p.id===_asProjId):null;
-    const scheduleFrom=GANTT_TODAY; // always start from today
-
-    // Pre-seed daily-rate tasks (respect active project filter)
-    _asTasks.forEach(dt=>{
-      if(dt.resId!==resId||dt.timeMode!=='daily'||!dt.start) return;
-      if(dt.status==='done'||dt.status==='cancelled') return;
-      let d=dt.start, placed=0;
-      while(placed<(dt.dur||1)&&d<dt.start+(dt.dur||1)+30){
-        if(!isNW(d,dt.id,resId)){ dayAlloc[d]=(dayAlloc[d]||0)+(dt.hpd||HPD); placed++; } d++;
-      }
-    });
-
-    // Pre-seed doing tasks (locked in place)
-    TASKS.forEach(t=>{
-      if(t.resId!==resId||t.status!=='doing'||!t.start) return;
-      let rem=tHours(t), d=t.start;
-      while(rem>0.001&&d<t.start+(t.dur||1)+1){
-        if(!isNW(d,t.id,resId)){ const put=Math.min(rem,cap); dayAlloc[d]=(dayAlloc[d]||0)+put; rem-=put; } d++;
-      }
-    });
-
-    // Build combined list: tasks + subtasks sorted by original start
-    const _items=[];
-    _asTasks.forEach(t=>{
-      // Normal tasks for this resource
-      if(t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='doing'&&t.timeMode!=='daily'){
-        _items.push({isSub:false, t, hours:tHours(t), origStart:t.start||scheduleFrom});
-      }
-      // Subtasks for this resource
-      (t.subtasks||[]).forEach(st=>{
-        const stRes=st.resId||t.resId;
-        if(stRes!==resId||!st.name?.trim()||!(st.hours>0)) return;
-        if(st.status==='done'||st.status==='cancelled') return;
-        _items.push({isSub:true, t, st, hours:st.hours, origStart:st.start||scheduleFrom});
-      });
-    });
-    _items.sort((a,b)=>(a.origStart||99999)-(b.origStart||99999));
-
-    _items.forEach(item=>{
-      let remaining=item.hours;
-      let day=Math.max(scheduleFrom, item.origStart);
-      if(isNW(day,item.isSub?null:item.t.id,resId)) day=nextWorkDay(day);
-      let startDay=null, endDay=null, iters=0;
-      while(remaining>0.001&&iters++<500){
-        if(isNW(day,item.isSub?null:item.t.id,resId)){day++;continue;}
-        const avail=Math.max(0,cap-(dayAlloc[day]||0));
-        if(avail>0.001){
-          if(startDay===null) startDay=day;
-          const put=Math.min(remaining,avail);
-          dayAlloc[day]=(dayAlloc[day]||0)+put;
-          remaining-=put; endDay=day;
-        }
-        if(remaining>0.001) day++;
-      }
-      const ns=startDay||day, nd=Math.max(1,(endDay||ns)-ns+1);
-      if(item.isSub){
-        if(ns!==item.st.start){ item.st.start=ns; item.st.dur=nd; moved++; _movedIds.push(item.t.id); }
-      } else {
-        if(ns!==item.t.start||nd!==item.t.dur){
-          addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});
-          item.t.start=ns; item.t.dur=nd;
-          if(item.t._autoSplit){item.t.segments=null;item.t._autoSplit=false;}
-          moved++; _movedIds.push(item.t.id);
-        }
-      }
+  // Build items: tasks + subtasks, ordered by current Gantt start (stable by TASKS index)
+  const items=[];
+  tasks.forEach((t,ti)=>{
+    if(t.resId!==resId) return;
+    if(t.status==='done'||t.status==='cancelled'||t.status==='doing'||t.timeMode==='daily') return;
+    const h=tHours(t); if(!(h>0)) return;
+    items.push({isSub:false, t, st:null, hours:h, sortKey:(t.start||GANTT_TODAY)*10000+ti});
+    // Subtasks for this resource
+    (t.subtasks||[]).forEach((st,si)=>{
+      if((st.resId||t.resId)!==resId) return;
+      if(st.status==='done'||st.status==='cancelled') return;
+      if(!st.name?.trim()||!(st.hours>0)) return;
+      items.push({isSub:true, t, st, hours:st.hours, sortKey:(t.start||GANTT_TODAY)*10000+ti+si*0.1});
     });
   });
 
-  // Task display order preserved — only scheduling positions change
-  if(moved===0){
-    if(_asTasks.length===0 && _asProjId) notify('No tasks found for active project. Make sure tasks have a project assigned.','warn');
-    else notify('Auto-schedule: nothing to reschedule (all tasks already optimal)','info');
-    return;
+  // Sort by current Gantt start order
+  items.sort((a,b)=>a.sortKey-b.sortKey);
+
+  let moved=0; const changedIds=[];
+
+  items.forEach(item=>{
+    let rem=item.hours, day=GANTT_TODAY, sDay=null, eDay=null, iter=0;
+    const taskId=item.isSub?null:item.t.id;
+    // Skip leading NW days
+    while(isNW(day,taskId,resId)&&iter++<30) day++;
+    iter=0;
+    while(rem>0.001&&iter++<500){
+      if(isNW(day,taskId,resId)){day++;continue;}
+      const av=Math.max(0,cap-(alloc[day]||0));
+      if(av>0.001){
+        if(sDay===null) sDay=day;
+        const p=Math.min(rem,av);
+        alloc[day]=(alloc[day]||0)+p;
+        rem-=p; eDay=day;
+      }
+      if(rem>0.001) day++;
+    }
+    if(sDay===null) return;
+    const ns=sDay, nd=Math.max(1,eDay-sDay+1);
+    if(item.isSub){
+      if(ns!==item.st.start||nd!==item.st.dur) moved++;
+      item.st.start=ns; item.st.dur=nd;
+      changedIds.push(item.t.id);
+    } else {
+      if(ns!==item.t.start||nd!==item.t.dur){
+        addLog({type:'move',task:item.t.name,from:item.t.start?sd(item.t.start):'—',to:sd(ns)});
+        moved++;
+      }
+      item.t.start=ns; item.t.dur=nd;
+      changedIds.push(item.t.id);
+    }
+  });
+
+  return {moved, changedIds:[...new Set(changedIds)]};
+}
+
+window.autoScheduleRes=(resId)=>{
+  const projId=S._activeProjId||null;
+  const tasks=TASKS.filter(t=>{
+    if(projId && t.projId!==projId) return false;
+    return true;
+  });
+  if(!tasks.filter(t=>t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='doing'&&t.timeMode!=='daily').length){
+    notify('No tasks to schedule for this resource','info'); return;
   }
-  notify(`Auto-schedule: ${moved} task${moved!==1?'s':''} rescheduled`,'success');
-  persistState(['tasks'],{tasks:[...new Set(_movedIds)]});
-  renderGantt();
-  renderDash();
+  const {moved, changedIds}=_scheduleResource(resId, tasks);
+  notify('Auto ('+( getRes(resId)?.name||resId )+'): '+moved+' task'+(moved!==1?'s':'')+' rescheduled','success');
+  if(changedIds.length) persistState(['tasks'],{tasks:changedIds});
+  renderGantt(); renderDash();
+};
+
+window.autoSchedule=()=>{
+  if(!confirm('Auto-schedule: pack tasks from today in Gantt order, filling daily capacity.\n\nContinue?')) return;
+  const projId=S._activeProjId||null;
+  const tasks=TASKS.filter(t=>{
+    if(projId && t.projId!==projId) return false;
+    return true;
+  });
+  const resIds=new Set(tasks.map(t=>t.resId).filter(Boolean));
+  let totalMoved=0; const allChanged=[];
+  resIds.forEach(resId=>{
+    const {moved, changedIds}=_scheduleResource(resId, tasks);
+    totalMoved+=moved;
+    allChanged.push(...changedIds);
+  });
+  notify('Auto-schedule: '+totalMoved+' task'+(totalMoved!==1?'s':'')+' rescheduled','success');
+  if(allChanged.length) persistState(['tasks'],{tasks:[...new Set(allChanged)]});
+  renderGantt(); renderDash();
 };
 
 // ============================================================
