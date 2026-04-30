@@ -3048,9 +3048,8 @@ function openAddTask(){
   const _ps=document.getElementById('mt-proj');
   if(_ps){
     _ps.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-    // Auto-select: use filter's active project, or first project
-    const _activeProjId=S.vbFilter.length===1&&S.viewBy==='project'?S.vbFilter[0]:(PROJECTS[0]?.id||'');
-    _ps.value=_activeProjId;
+    // Auto-select active project from selector, else first project
+    _ps.value=S._activeProjId||(PROJECTS[0]?.id||'');
   }
   const _cb=document.getElementById('tt-cont'); if(_cb&&!_cb.classList.contains('on')) setTaskType('continuous',_cb);
   _populateResAddFlat();
@@ -3081,7 +3080,7 @@ function openEditTask(id){
   S.editId=id;
   document.getElementById('mt-h').textContent='Edit Task';
   const _ps2=document.getElementById('mt-proj');
-  if(_ps2){ _ps2.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _ps2.value=t.projId||''; }
+  if(_ps2){ _ps2.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _ps2.value=t.projId||S._activeProjId||''; }
   const _isCont=!t.timeMode||t.timeMode==='total';
   setTaskType(_isCont?'continuous':'daily',document.getElementById(_isCont?'tt-cont':'tt-daily'));
   if(!_isCont&&t.start){ const _sd=gDate(t.start),_ed=gDate(t.start+(t.dur||1)-1);const _fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;const _sse=document.getElementById('mt-s-date');const _ese=document.getElementById('mt-e-date');if(_sse)_sse.value=_fmt(_sd);if(_ese)_ese.value=_fmt(_ed); }
@@ -3858,9 +3857,8 @@ window.autoSchedule=()=>{
   allResIds.forEach(resId=>{
     const cap=getRes(resId)?.dailyCap||HPD;
     const dayAlloc={};
-    const _activeProjObj=_asProjId?PROJECTS.find(p=>p.id===_asProjId):PROJECTS[0];
-    const projStart=_activeProjObj?.start?dateToIdx(_activeProjObj.start):GANTT_TODAY;
-    const scheduleFrom=Math.max(GANTT_TODAY, projStart||GANTT_TODAY);
+    const _activeProjObj=_asProjId?PROJECTS.find(p=>p.id===_asProjId):null;
+    const scheduleFrom=GANTT_TODAY; // always start from today
 
     // Pre-seed daily-rate tasks (respect active project filter)
     _asTasks.forEach(dt=>{
@@ -3929,6 +3927,11 @@ window.autoSchedule=()=>{
   });
 
   // Task display order preserved — only scheduling positions change
+  if(moved===0){
+    if(_asTasks.length===0 && _asProjId) notify('No tasks found for active project. Make sure tasks have a project assigned.','warn');
+    else notify('Auto-schedule: nothing to reschedule (all tasks already optimal)','info');
+    return;
+  }
   notify(`Auto-schedule: ${moved} task${moved!==1?'s':''} rescheduled`,'success');
   persistState(['tasks'],{tasks:[...new Set(_movedIds)]});
   renderGantt();
