@@ -1615,22 +1615,21 @@ function visTasks(){
   let tasks=TASKS.filter(t=>{
     const isMsTask=msTaskIds.has(t.id);
     if(_msFilter && !isMsTask) return false;
-    // Active project filter
-    if(S._activeProjId && t.projId && t.projId!==S._activeProjId) return false;
-    // Tasks with past time logs always visible as historical records
-    const hasPastLogs=(t.timeLogs||[]).some(l=>{ const di=dateToIdx(l.date); return di&&di<=_yst; });
-    if(hasPastLogs) return true;
+    // Active project filter — always applies (even to historical tasks)
+    if(S._activeProjId && (t.projId||null) !== S._activeProjId) return false;
+    // Search filter — always applies
+    if(search && !t.name.toLowerCase().includes(search)) return false;
+    // Tag filter — always applies
+    if(S.selectedTags.length && !S.selectedTags.some(tg=>(t.tags||[]).includes(tg))) return false;
     if(!isMsTask){
       if(!S.statusFilter.includes(t.status)) return false;
-      if(S.selectedTags.length && !S.selectedTags.some(tg=>(t.tags||[]).includes(tg))) return false;
-      if(search && !t.name.toLowerCase().includes(search)) return false;
     }
     return true;
   });
   const sb=S._sortBy||'chrono';
   if(sb==='name') tasks=[...tasks].sort((a,b)=>a.name.localeCompare(b.name));
   else if(sb==='tags') tasks=[...tasks].sort((a,b)=>((a.tags||[])[0]||'').localeCompare((b.tags||[])[0]||''));
-  // 'chrono' = natural TASKS array order (already sorted by start)
+  else tasks=[...tasks].sort((a,b)=>(a.start||99999)-(b.start||99999)); // chrono: sort by start date
   return tasks;
 }
 
@@ -1726,6 +1725,7 @@ function _subHoursOnDay(s, t, day){
 function renderGantt(){
   document.getElementById('sb-tc').textContent=TASKS.length;
   {const _vm={project:'vb-pr',team:'vb-tm',resource:'vb-rs'};document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));const _ve=document.getElementById(_vm[S.viewBy]);if(_ve)_ve.classList.add('on');}
+  {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}  
   {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}
   buildTagPanel();
 
@@ -1825,7 +1825,7 @@ function renderGantt(){
     ${cols.map(c=>{
       let cls='th-d '+(c.today?'today':c.en?'en-h':c.nw?'nw-h':c.locked?'locked':'');
       const tip=`${c.dt.toDateString()}${c.nw?' (non-working — click to enable)':''}${c.en?' (enabled — click to revert)':''}${c.today?' TODAY':''}`;
-      const mHere=MILESTONES.filter(m=>m.dayIdx===c.idx&&(!S._activeProjId||!m.projId||m.projId===S._activeProjId));
+      const mHere=MILESTONES.filter(m=>m.dayIdx===c.idx&&(!S._activeProjId||(m.projId?m.projId===S._activeProjId:(m.taskIds||[]).some(id=>TASKS.find(t=>t.id===id&&t.projId===S._activeProjId)))));
       // Build header milestone: single dot or multi-colour pie dot
       const dayN=gDate(c.idx).getDate();
       const msInHeader=(()=>{
@@ -2097,7 +2097,7 @@ function renderGantt(){
       const isDepCol=depDay&&day===depDay;
       const dayHours=sched[day]||0;
       const markers=(isDlCol?'<div class="dl-marker"></div>':'')+(isDepCol?'<div class="dep-marker"></div>':'');
-      const taskMsArr=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx===day&&(!S._activeProjId||!m.projId||m.projId===S._activeProjId));
+      const taskMsArr=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx===day&&(!S._activeProjId||(m.projId?m.projId===S._activeProjId:(m.taskIds||[]).some(id=>TASKS.find(t2=>t2.id===id&&t2.projId===S._activeProjId)))));
       const _msc=taskMsArr.length>0?(taskMsArr[0].color||'var(--acc2)'):'';
             // Line via background-image (hover uses background-color so this survives)
       // Milestone: injected inside bar div (position:relative), works in all browsers
@@ -4212,7 +4212,8 @@ function renderMyGantt(tasks,myId){
   const myTaskIds=new Set(tasks.map(t=>t.id));
   const myMilestones=MILESTONES.filter(m=>
     m.dayIdx>=rangeStart && m.dayIdx<=rangeEnd &&
-    (m.taskIds||[]).some(id=>myTaskIds.has(id))
+    (m.taskIds||[]).some(id=>myTaskIds.has(id)) &&
+    (!S._activeProjId||(m.projId?m.projId===S._activeProjId:(m.taskIds||[]).some(id=>myTaskIds.has(id))))
   );
 
   // Build per-day log map: {dayIdx: [{hours, startTime, endTime, taskId}]}
@@ -5913,10 +5914,11 @@ window.saveMilestone=()=>{
   const dayIdx=dateToIdx(dateStr);
   if(!dayIdx){notify('Invalid date','warn');return;}
   const color=document.getElementById('ms-color').value||'#7b61ff';
+  const projId=document.getElementById('ms-proj')?.value||null;
   const taskIds=[...document.querySelectorAll('#ms-task-list input[type=checkbox]:checked')].map(cb=>cb.value);
   if(_msEditId){
     const ms=MILESTONES.find(m=>m.id===_msEditId);
-    if(ms){Object.assign(ms,{name,dayIdx,color,taskIds});}
+    if(ms){Object.assign(ms,{name,dayIdx,color,taskIds,projId});}
     const _old=MILESTONES.find(m=>m.id===_msEditId);
     const _msDiffs=[];
     if(_old?.name!==name) _msDiffs.push(`name: "${_old?.name}" → "${name}"`);
@@ -5926,7 +5928,7 @@ window.saveMilestone=()=>{
     if(_removedTs.length) _msDiffs.push(`-tasks: ${_removedTs.map(id=>TASKS.find(t=>t.id===id)?.name||id).join(', ')}`);
     addLog({type:'milestone',task:name,from:'',to:_msDiffs.length?_msDiffs.join(' · '):'saved'});
   } else {
-    MILESTONES.push({id:'ms'+Date.now().toString(36),name,dayIdx,color,taskIds});
+    MILESTONES.push({id:'ms'+Date.now().toString(36),name,dayIdx,color,taskIds,projId});
     addLog({type:'milestone',task:name,from:'',to:`created — ${sd(dayIdx)}${taskIds.length?' · '+taskIds.length+' task(s)':''}`});
   }
   persistState(['milestones']);
@@ -6150,7 +6152,7 @@ function renderGanttWeek(){
         const weekH=Object.entries(t._sched||{}).reduce((s,[d,h])=>{const di=parseInt(d);return di>=w.startIdx&&di<=w.endIdx?s+h:s;},0);
         const loggedW=(t.timeLogs||[]).filter(l=>{const d=dateToIdx(l.date);return d>=w.startIdx&&d<=w.endIdx;}).reduce((s,l)=>s+l.hours,0);
         const dispH=weekH||loggedW;
-        const ms=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx>=w.startIdx&&m.dayIdx<=w.endIdx);
+        const ms=MILESTONES.filter(m=>(m.taskIds||[]).includes(t.id)&&m.dayIdx>=w.startIdx&&m.dayIdx<=w.endIdx&&(!S._activeProjId||(m.projId?m.projId===S._activeProjId:(m.taskIds||[]).some(id=>TASKS.find(t=>t.id===id&&t.projId===S._activeProjId)))));
         const _wmc=ms.length?(ms[0].color||'var(--acc2)'):'';
         const _wmStyle=ms.length?`background-image:linear-gradient(to right,transparent calc(50% - 1px),${_wmc} calc(50% - 1px),${_wmc} calc(50% + 1px),transparent calc(50% + 1px));`:'';
         if(dispH>0){
@@ -6587,6 +6589,8 @@ window._sortMenuGantt=(e)=>{
 
 window._onProjSelectorChange=(projId)=>{
   S._activeProjId=projId||null;
+  // Clear milestone filter if it belongs to a different project
+  if(_msFilter){ const _msObj=MILESTONES.find(m=>m.id===_msFilter); if(_msObj&&projId&&_msObj.projId&&_msObj.projId!==projId) _msFilter=null; }
   // Project selector only sets _activeProjId — never touches vbFilter
   // (vbFilter belongs to the resource/team/project view-by filter)
   renderGantt();
