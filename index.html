@@ -3847,7 +3847,7 @@ window.autoSchedule=()=>{
 
   // Collect resources from active project (or all if no project selected)
   const _asProjId=S._activeProjId||null;
-  const _asTasks=TASKS.filter(t=>!_asProjId||!t.projId||t.projId===_asProjId);
+  const _asTasks=TASKS.filter(t=>!_asProjId||t.projId===_asProjId);
   const allResIds=new Set();
   _asTasks.forEach(t=>{
     if(t.resId) allResIds.add(t.resId);
@@ -3858,7 +3858,8 @@ window.autoSchedule=()=>{
   allResIds.forEach(resId=>{
     const cap=getRes(resId)?.dailyCap||HPD;
     const dayAlloc={};
-    const projStart=PROJECTS[0]?.start?dateToIdx(PROJECTS[0].start):GANTT_TODAY;
+    const _activeProjObj=_asProjId?PROJECTS.find(p=>p.id===_asProjId):PROJECTS[0];
+    const projStart=_activeProjObj?.start?dateToIdx(_activeProjObj.start):GANTT_TODAY;
     const scheduleFrom=Math.max(GANTT_TODAY, projStart||GANTT_TODAY);
 
     // Pre-seed daily-rate tasks (respect active project filter)
