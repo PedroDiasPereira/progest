@@ -389,7 +389,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
 <!-- SIDEBAR -->
 <nav id="sb">
-  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.3</span></div></div>
+  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.4</span></div></div>
   <div class="sb-sec">Main</div>
   <div class="nav on" data-page="dashboard"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/></svg>Dashboard</div>
   <div class="nav" data-page="projects"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".9"/><rect x="8" y="1" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="5" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="12" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/></svg>Projects</div>
@@ -463,7 +463,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
         <!-- Spacer -->
         <div style="flex:1"></div>
         <!-- Filters right-aligned -->
-        <button id="btn-show-subtasks" class="btn btn-sm" onclick="toggleSubtasks()" title="Show subtasks" style="font-size:9px;padding:3px 7px">⤷ Sub</button>
+        
         <button class="btn btn-sm" onclick="clearAllFilters()" title="Clear all filters" style="font-size:9px;padding:3px 7px;color:var(--fg2)">✕ Clear</button>
         <div id="sf-chips" style="display:flex;gap:3px;flex-wrap:wrap"></div>
         <div class="tag-dd" id="tag-dd">
@@ -570,19 +570,27 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
     <div id="page-production" class="page">
       <div class="pc">
-        <div class="ph flex ic jb mb16">
+        <div class="ph flex ic jb mb16" style="flex-wrap:wrap;gap:8px">
           <div>
             <span class="pt">Production</span>
-            <div style="font-size:11px;color:var(--fg2);margin-top:2px">LMTs &amp; OFs por encomenda</div>
+            <div style="font-size:11px;color:var(--fg2);margin-top:2px">Pending orders &amp; delivery lines</div>
           </div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <select class="fi" id="prod-order-sel" onchange="renderProduction()" style="font-size:11px">
-              <option value="">— select order —</option>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="prod-search" class="fi" placeholder="Search order / article / code…" oninput="renderProduction()" style="width:190px;font-size:11px">
+            <select class="fi" id="prod-sort" onchange="renderProduction()" style="font-size:11px">
+              <option value="date">Sort: delivery date</option>
+              <option value="doc">Sort: order number</option>
+              <option value="qty">Sort: qty pending</option>
             </select>
+            <button class="btn btn-sm" id="prod-filter-btn" onclick="prodToggleFilter()" style="font-size:10px">🔒 My Projects</button>
+            <button class="btn btn-sm" onclick="prodCols()" style="font-size:10px">⚙ Columns</button>
+            <button class="btn btn-sm" onclick="prodLoadFile()">📂 Load JSON</button>
             <button class="btn btn-sm btn-p" onclick="renderProduction()">↺ Refresh</button>
+            <span id="prod-updated" style="font-size:9px;color:var(--fg3)"></span>
           </div>
         </div>
         <div id="prod-content"></div>
+        <input type="file" id="prod-file-input" accept=".json" style="display:none" onchange="prodFileChanged(this)">
       </div>
     </div>
 
@@ -944,6 +952,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
     <div class="fg"><label class="fl">Start date</label><input type="date" class="fi" id="mpr-start"></div>
     <div class="fg"><label class="fl">Deadline</label><input type="date" class="fi" id="mpr-dl"></div>
     <div class="fg" style="grid-column:span 2"><label class="fl">Tags (comma separated)</label><input class="fi" id="mpr-tags" placeholder="e.g. ROB, CFP, LAV"></div>
+    <div class="fg"><label class="fl">Order ID</label><input class="fi" id="mpr-order" placeholder="e.g. 248018" title="Links to pending order in Production page"></div>
   </div>
   <div class="mf">
     <button class="btn btn-d btn-sm" id="mpr-del" onclick="delEditProject()" style="margin-right:auto;display:none">Delete</button>
@@ -1144,11 +1153,43 @@ function isSegLocked(taskId, day){
   const seg=t.segments[0];
   return !!(seg?._locked && day>=seg.start && day<seg.start+seg.dur);
 }
-function tHours(t){ if(t.segments) return t.segments.reduce((s,g)=>s+g.hours,0); return t.timeMode==='daily'?(t.hpd||HPD)*(t.dur||1):t.hours||HPD; }
+function tHours(t){ if(t.segments) return t.segments.reduce((s,g)=>s+g.hours,0); return t.timeMode==='daily'?(t.hpd||HPD)*(t.dur||1):(t.hours??0); }
 function tDur(t)  { if(t.segments){ const l=t.segments[t.segments.length-1]; return l.start+l.dur-1-t.segments[0].start+1; } return t.dur||1; }
 function tEnd(t)  { if(t.segments){ const l=t.segments[t.segments.length-1]; return l.start+l.dur-1; } return (t.start||1)+(t.dur||1)-1; }
 
 // Migrate tasks: fill resHours if empty, build taskTeams if missing
+
+// Flatten subtasks into TASKS[] with parentId (for unlimited nesting)
+function flattenSubtasksToTasks(){
+  const toAdd=[];
+  TASKS.forEach(t=>{
+    if(!t.parentId) t.parentId=null; // ensure field exists
+    if(!(t.subtasks||[]).length) return;
+    t.subtasks.forEach(st=>{
+      // Only promote if not already in TASKS (avoid double-add on reload)
+      if(!TASKS.find(x=>x.id===st.id)){
+        toAdd.push({
+          ...st,
+          parentId:t.id,
+          projId:st.projId||t.projId,
+          teamId:st.teamId||t.teamId,
+          teamIds:st.teamIds||t.teamIds||[],
+          tags:st.tags||[],
+          timeLogs:st.timeLogs||[],
+          segments:null,
+          coResIds:st.coResIds||[],
+          resHours:st.resHours||{},
+          timeMode:st.timeMode||'total',
+          hpd:st.hpd||null,
+          weekdays:st.weekdays||null,
+        });
+      }
+    });
+    t.subtasks=[]; // clear subtasks from parent (now in TASKS)
+  });
+  toAdd.forEach(t=>TASKS.push(t));
+}
+
 function migrateTasks(suppressSave){
   let _migrChanged=false; const _migrIds=[];
   TASKS.forEach(t=>{
@@ -1633,46 +1674,72 @@ function visTasks(){
   return tasks;
 }
 
+
+const _collapsedTasks=new Set(JSON.parse(sessionStorage.getItem('pg_collapsed')||'[]'));
+function _saveCollapsed(){try{sessionStorage.setItem('pg_collapsed',JSON.stringify([..._collapsedTasks]));}catch(e){}}
+window.toggleCollapse=(taskId,e)=>{if(e)e.stopPropagation();if(_collapsedTasks.has(taskId))_collapsedTasks.delete(taskId);else _collapsedTasks.add(taskId);_saveCollapsed();renderGantt();};
+function hasChildren(taskId){return TASKS.some(t=>t.parentId===taskId)||(TASKS.find(t=>t.id===taskId)?.subtasks||[]).some(st=>st.name?.trim());}
+
 function buildGRows(tasks){
   const rows=[];
   if(S.viewBy==='project'){
     const _apId=S._activeProjId||null;
     const _projIds=_apId?[_apId]:[...new Set(tasks.map(t=>t.projId).filter(Boolean))];
+    function _addTree(t,depth){
+      rows.push({t,tid:TASKS.indexOf(t),depth,viewResId:null});
+      if(!hasChildren(t.id)||_collapsedTasks.has(t.id))return;
+      // All children are now in TASKS[] (flattenSubtasksToTasks guarantees this)
+      TASKS.filter(ch=>ch.parentId===t.id&&tasks.includes(ch)).forEach(ch=>_addTree(ch,depth+1));
+    }
     _projIds.forEach(pid=>{
       const proj=PROJECTS.find(p=>p.id===pid);
-      const pt=tasks.filter(t=>t.projId===pid);
-      if(!pt.length) return;
+      const roots=tasks.filter(t=>t.projId===pid&&!t.parentId);
+      if(!roots.length) return;
       rows.push({isGH:true,label:proj?.name||pid,color:proj?.color||'#7a8aaa',resId:null});
-      pt.forEach(t=>{
-        rows.push({t,tid:TASKS.indexOf(t),depth:0});
-        if(_showSubtasks)(t.subtasks||[]).filter(st=>st.name?.trim()).forEach(st=>rows.push({t,st,isSubtask:true,depth:1}));
-      });
+      roots.forEach(t=>_addTree(t,0));
     });
     if(!_apId){
-      const noProj=tasks.filter(t=>!t.projId);
-      if(noProj.length){
-        rows.push({isGH:true,label:'No project',color:'#7a8aaa',resId:null});
-        noProj.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
-      }
+      const noProj=tasks.filter(t=>!t.projId&&!t.parentId);
+      if(noProj.length){rows.push({isGH:true,label:'No project',color:'#7a8aaa',resId:null});noProj.forEach(t=>_addTree(t,0));}
     }
   } else if(S.viewBy==='resource'){
     // Collect all resource IDs that appear in any task (primary or co-resource)
-    const allTaskResIds=new Set(tasks.flatMap(t=>[t.resId,...(t.coResIds||[])]).filter(Boolean));
+    // Collect ALL resource IDs: task primary/co + subtask resources
+    const allTaskResIds=new Set(tasks.flatMap(t=>[
+      t.resId,
+      ...(t.coResIds||[]),
+      ...(t.subtasks||[]).map(st=>st.resId).filter(Boolean)
+    ]).filter(Boolean));
     const _vbReal=S.vbFilter.filter(x=>x!=='__none__');
     const rIds=_vbReal.length && !S.vbFilter.includes('__none__') ? _vbReal : S.vbFilter.includes('__none__') ? [] : [...allTaskResIds];
     rIds.forEach(rid=>{
       // Tasks where this resource is primary OR co-resource
       const rt=tasks.filter(t=>t.resId===rid||(t.coResIds||[]).includes(rid));
-      if(!rt.length) return;
+      // Cross-resource subtasks: subtasks assigned to this resource whose parent has a different resource
+      const crossSubs=[];
+      if(_showSubtasks||S.viewBy!=='project'){
+        TASKS.forEach(t=>{
+          if(t.resId===rid||(t.coResIds||[]).includes(rid)) return; // handled below with rt
+          (t.subtasks||[]).filter(st=>st.name?.trim()&&st.resId===rid).forEach(st=>{
+            crossSubs.push({t,st});
+          });
+        });
+      }
+      if(!rt.length && !crossSubs.length) return; // truly nothing for this resource
       const r=getRes(rid);
       rows.push({isGH:true,label:r?r.name:'?',color:resTeamColor(rid),resId:rid});
-      // Pass viewResId so the bar knows which resource's hours to show
       rt.forEach(t=>{
         rows.push({t,tid:TASKS.indexOf(t),depth:0,viewResId:rid});
-        if(_showSubtasks)(t.subtasks||[]).filter(st=>st.name?.trim()).forEach(st=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
+        if(_showSubtasks||S.viewBy!=='project')(t.subtasks||[]).filter(st=>{
+          if(!st.name?.trim()) return false;
+          const stRes=st.resId||t.resId;
+          return stRes===rid;
+        }).forEach(st=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
       });
+      crossSubs.forEach(({t,st})=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
     });
-    const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0));
+    // Exclude 0h tasks (grouping tasks) from Unassigned — they're structural, not work items
+    const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0)&&(t.hours??0)>0);
     if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});noRes.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
   } else {
     const _vbR2=S.vbFilter.filter(x=>x!=='__none__');
@@ -1707,6 +1774,7 @@ function _reRenderCurrent(){
 }
 // Hours a subtask packs on a specific day (greedy: fill cap, then next day)
 function _subHoursOnDay(s, t, day){
+  if(s._sched) return s._sched[day]||0;
   const resId=s.resId||t.resId;
   const cap=getRes(resId)?.dailyCap||HPD;
   const start=s.start||t.start||GANTT_TODAY;
@@ -1723,6 +1791,7 @@ function _subHoursOnDay(s, t, day){
 }
 
 function renderGantt(){
+  flattenSubtasksToTasks(); // ensure legacy subtasks are in TASKS[]
   document.getElementById('sb-tc').textContent=TASKS.length;
   {const _vm={project:'vb-pr',team:'vb-tm',resource:'vb-rs'};document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));const _ve=document.getElementById(_vm[S.viewBy]);if(_ve)_ve.classList.add('on');}
   {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}  
@@ -1852,9 +1921,17 @@ function renderGantt(){
           title="${tip}"
           style="position:absolute;top:0;bottom:0;left:50%;width:28px;transform:translateX(-50%);z-index:20;cursor:pointer;pointer-events:all">
           <div style="position:absolute;top:0;bottom:0;left:50%;width:${isAnyAct?3:2}px;transform:translateX(-50%);background:${lineCol};opacity:${isAnyAct?1:.65};border-radius:1px;pointer-events:none"></div>
-          <div style="position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:${dotBg};border:2.5px solid var(--bg0);display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:21;${isAnyAct?'box-shadow:0 0 10px '+lineCol+';':''}" title="${tip}">
-            <span style="font-size:9px;font-weight:800;color:#fff;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.6)">${dayN}</span>
-          </div>
+          ${(()=>{
+            const allDiamond=mHere.every(m=>m.shape==='diamond');
+            if(allDiamond){
+              return `<div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%) rotate(45deg);width:20px;height:20px;background:${dotBg};border:2px solid var(--bg0);pointer-events:none;z-index:21;${isAnyAct?'box-shadow:0 0 8px '+lineCol+';':''}">
+                <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:8px;font-weight:800;color:#fff;line-height:1">${dayN}</span>
+              </div>`;
+            }
+            return `<div style="position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:${dotBg};border:2.5px solid var(--bg0);display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:21;${isAnyAct?'box-shadow:0 0 10px '+lineCol+';':''}">
+              <span style="font-size:9px;font-weight:800;color:#fff;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.6)">${dayN}</span>
+            </div>`;
+          })()}
         </div>`;
       })();
       const isPdlCol=pdl&&c.idx===pdl;
@@ -1996,7 +2073,9 @@ function renderGantt(){
     // Color by viewResId team in resource view, otherwise primary resource
     const displayResId=viewResId||t.resId;
     const r=getRes(displayResId||t.resId);
-    const barColor=t.teamId?getTeam(t.teamId)?.color||(r&&r.teams?.length?getTeam(r.teams[0])?.color||'#7a8aaa':'#7a8aaa'):tagCol((t.tags||[])[0]);
+    const _parentTask=t.parentId?TASKS.find(p=>p.id===t.parentId):null;
+    const _effectiveTeamId=t.teamId||(_parentTask?.teamId)||null;
+    const barColor=_effectiveTeamId?getTeam(_effectiveTeamId)?.color||(r&&r.teams?.length?getTeam(r.teams[0])?.color||'#7a8aaa':'#7a8aaa'):tagCol((t.tags||[])[0]);
 
     // Row bg
     let rowStyle=isDone?'opacity:.5':'';
@@ -2024,6 +2103,8 @@ function renderGantt(){
     H+=`<tr data-tid="${t.id}" style="${rowStyle}">
       <td class="stn" style="padding:2px 6px;width:240px;max-width:240px">
         <div style="display:flex;align-items:center;gap:4px">
+          ${row.depth?`<span style="display:inline-block;width:${row.depth*10}px;flex-shrink:0"></span>`:''}
+          ${S.viewBy==='project'&&hasChildren(t.id)?`<span onclick="toggleCollapse('${t.id}',event)" style="cursor:pointer;font-size:9px;color:var(--fg3);flex-shrink:0;width:10px;text-align:center;user-select:none">${_collapsedTasks.has(t.id)?'▶':'▼'}</span>`:`<span style="display:inline-block;width:10px;flex-shrink:0"></span>`}
           <button onclick="event.stopPropagation();cycleStatus('${t.id}')" oncontextmenu="event.preventDefault();event.stopPropagation();showStatusMenu(event,'${t.id}')"
             title="${t.status==='doing'||t.status==='paused'?'Use timer to control':'Click → Done · Right-click for more'}"
             style="flex-shrink:0;width:14px;height:14px;border-radius:50%;border:2px solid ${SCOLS[t.status]};background:${t.status==='done'?SCOLS[t.status]:'transparent'};cursor:pointer;padding:0;transition:all .15s;font-size:7px;line-height:1;display:flex;align-items:center;justify-content:center;color:${SCOLS[t.status]}">
@@ -2056,7 +2137,11 @@ function renderGantt(){
     cols.forEach((c,ci)=>{ if((sched[c.idx]||0)>0.001){if(firstBarCi<0)firstBarCi=ci;lastBarCi=ci;} });
 
     // Subtask outline: span from earliest subtask start to latest subtask end
-    const _stArr=(t.subtasks||[]).filter(s=>s.name?.trim());
+    // Include both legacy subtasks[] and new TASKS[] children (parentId model)
+    const _stArr=[
+      ...(t.subtasks||[]).filter(s=>s.name?.trim()),
+      ...TASKS.filter(ch=>ch.parentId===t.id&&ch.name?.trim())
+    ];
     let _stOutlineFirst=-1,_stOutlineLast=-1;
     if(_stArr.length&&_showSubtasks){
       let stMin=Infinity, stMax=-Infinity;
@@ -2114,7 +2199,7 @@ function renderGantt(){
       const taskMsLine=''; const taskMsDot='';
 
       // Compute sub visibility OUTSIDE if-block so all branches can use it
-      const _activeSubs4Day=!_showSubtasks?_stArr.filter(s=>{if(isNW(day,null,s.resId||t.resId))return false;const _ss5=s.start||t.start||GANTT_TODAY;const _dd5=s.dur||Math.max(1,Math.ceil((s.hours||1)/(getRes(s.resId||t.resId)?.dailyCap||HPD)));return day>=_ss5&&day<_ss5+_dd5&&_subHoursOnDay(s,t,day)>0.001;}):[];
+      const _activeSubs4Day=(S.viewBy==='project'&&_collapsedTasks.has(t.id)&&hasChildren(t.id))?_stArr.filter(s=>{if(isNW(day,null,s.resId||t.resId))return false;if(s._sched)return(s._sched[day]||0)>0.001;const _ss5=s.start||t.start||GANTT_TODAY;const _sc5=getRes(s.resId||t.resId)?.dailyCap||HPD;const _dd5=Math.max(s.dur||1,Math.ceil((s.hours||1)/_sc5));return day>=_ss5&&day<_ss5+_dd5&&_subHoursOnDay(s,t,day)>0.001;}):[];
       const _hasSubsHere=_activeSubs4Day.length>0;
 
       const _dayActive=_isDayActiveForTask(t,day);
@@ -2140,20 +2225,26 @@ function renderGantt(){
             ${isLast&&canEdit?`<span class="gr gr-r" onmousedown="rMD(event,'${t.id}','r',${COL_W})"></span>`:''}
           </div>
           ${_hasSubsHere?(()=>{
-            return _activeSubs4Day.map(s=>{
-              const _scp=getRes(s.resId||t.resId)?.dailyCap||HPD;
-              const _sdp=s.dur||Math.max(1,Math.ceil((s.hours||1)/_scp));
-              const _sfp=Math.min(1,_subHoursOnDay(s,t,day)/_scp);
-              const _shp=Math.max(BAR_MIN,Math.round(BAR_MIN+_sfp*(BAR_MAX-BAR_MIN)));
+            // Scale task bar + all children to fit within BAR_MAX
+            const _taskFrac=Math.min(1,dayHours/cap);
+            const _taskRaw=Math.max(BAR_MIN,Math.round(BAR_MIN+_taskFrac*(BAR_MAX-BAR_MIN)));
+            const _childFracs=_activeSubs4Day.map(s=>{const _scp=getRes(s.resId||t.resId)?.dailyCap||HPD;return Math.min(1,_subHoursOnDay(s,t,day)/_scp);});
+            const _childRaws=_childFracs.map(f=>Math.max(BAR_MIN,Math.round(BAR_MIN+f*(BAR_MAX-BAR_MIN))));
+            const _totalRaw=_taskRaw+_childRaws.reduce((a,h)=>a+h,0);
+            const _scale=_totalRaw>BAR_MAX?BAR_MAX/_totalRaw:1;
+            const _scaledTask=Math.max(2,Math.round(_taskRaw*_scale));
+            return _activeSubs4Day.map((s,_si)=>{
+              const _sh=Math.max(2,Math.round(_childRaws[_si]*_scale));
               const _dlp=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
               const _ovp=_dlp&&day>_dlp;
-              return '<div style="height:'+_shp+'px;width:100%;border-radius:3px;margin-top:1px;background:'+barColor+'88;'+(_ovp?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
+              return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+(()=>{const _st=s.teamId||TASKS.find(p=>p.id===s.parentId)?.teamId||t.teamId;return _st&&getTeam(_st)?.color||barColor;})()+'88;'+(_ovp?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
             }).join('');
           })():''}
         </td>`;
       } else if(day>=firstSchedDay&&day<=lastSchedDay){
-        // Check if this day is in the subtask outline range but outside the filled bar
-        H+=`<td class="nwc${isPdl?' pdl-col':''}" style="position:relative">${pdlOverlay}${markers}</td>`;
+        // Outline span (0h grouping task or outside bar range)
+        const _isGrouping=(tHours(t)??0)===0;
+        H+=`<td class="${_isGrouping?'':'nwc'}${isPdl?' pdl-col':''}" style="position:relative;${_isGrouping?'border-top:2px solid '+barColor+'66;':''}">` + pdlOverlay + markers + `</td>`;
       } else if(!_dayActive && day>=t.start && day<=(t.start+(t.dur||1)-1)){
         // Inactive weekday for daily task — dim cell with subtle indicator
         H+=`<td class="${tcls}" style="position:relative;background:rgba(255,255,255,.02)" title="Inactive weekday">
@@ -2161,22 +2252,28 @@ function renderGantt(){
         ${markers}</td>`;
       } else {
         const holdStyle=isHold?'hold-stripe':'';
-        const _miniSt=!_showSubtasks?(()=>{
+        const _miniSt=(S.viewBy==='project'&&_collapsedTasks.has(t.id)&&hasChildren(t.id))?(()=>{
           const _aS=_stArr.filter(s=>{
             if(isNW(day,null,s.resId||t.resId)) return false;
+            if(s._sched) return (s._sched[day]||0)>0.001;
             const _ss=s.start||t.start||GANTT_TODAY;
-            const _dd=s.dur||Math.max(1,Math.ceil((s.hours||1)/(getRes(s.resId||t.resId)?.dailyCap||HPD)));
+            const _scm=getRes(s.resId||t.resId)?.dailyCap||HPD;const _dd=Math.max(s.dur||1,Math.ceil((s.hours||1)/_scm));
             return day>=_ss&&day<_ss+_dd;
           });
           if(!_aS.length) return '';
-          return _aS.map(s=>{
+          // All children scale together to fit BAR_MAX — same color as parent (barColor)
+          const _eFracs=_aS.map(s=>{const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));return Math.min(1,(s.hours||1)/(_sd*_sc));});
+          const _eRaws=_eFracs.map(f=>Math.max(BAR_MIN,Math.round(BAR_MIN+f*(BAR_MAX-BAR_MIN))));
+          const _eTotalRaw=_eRaws.reduce((a,h)=>a+h,0);
+          const _eScale=_eTotalRaw>BAR_MAX?BAR_MAX/_eTotalRaw:1;
+          return _aS.map((s,_si)=>{
             const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;
             const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));
             const _sf=Math.min(1,(s.hours||1)/(_sd*_sc));
-            const _sh=Math.max(BAR_MIN,Math.round(BAR_MIN+_sf*(BAR_MAX-BAR_MIN)));
+            const _sh=Math.max(2,Math.round(_eRaws[_si]*_eScale));
             const _dl=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
             const _ov=_dl&&day>_dl;
-            return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+barColor+'88;'+(_ov?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
+            return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+(()=>{const _ste=s.teamId||TASKS.find(p=>p.id===s.parentId)?.teamId||t.teamId;return _ste&&getTeam(_ste)?.color||barColor;})()+'88;'+(_ov?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
           }).join('');
         })():'';
         H+=`<td class="${tcls} ${holdStyle}" style="cursor:${canEdit?'pointer':'default'};position:relative;overflow:visible;vertical-align:top;padding:1px 0 0"
@@ -2354,6 +2451,7 @@ function computeAllSchedules(){
   TASKS.forEach(t=>{
     if(t.status==='doing'||t.status==='paused') if(!t.start) t.start=GANTT_TODAY; // anchor active tasks
     if(!t.resId||!t.start||t.status==='done'||t.status==='cancelled'||t.status==='ready') return;
+    if((tHours(t)??0)===0) return; // 0h grouping task — no bars needed
     if(!byRes[t.resId]) byRes[t.resId]=[];
     byRes[t.resId].push(t);
   });
@@ -2392,7 +2490,7 @@ function computeAllSchedules(){
       const isActiveTask = t.status==='doing'||t.status==='paused';
       const hours = isActiveTask ? Math.max(0.25, tHours(t)-logH(t)) : tHours(t);
       // Never schedule non-done tasks in the past
-      const baseStart = (t.status==='done'||t.status==='cancelled') ? t.start : Math.max(t.start||GANTT_TODAY, GANTT_TODAY);
+      const baseStart = t.start||GANTT_TODAY; // always use task's saved start date
       let minStart=nextWorkDay(baseStart);
       if(t.depType==='task'&&t.depId){
         const dep=TASKS.find(x=>x.id===t.depId);
@@ -2416,12 +2514,8 @@ function computeAllSchedules(){
         if(remaining>0.001) day++;
       }
       t._sched=sched;
-      const days=Object.keys(sched).map(Number).sort((a,b)=>a-b);
-      // Only rewrite start/dur for plain tasks (no locked segments)
-      if(days.length&&(!t.segments||!t.segments[0]?._locked)){
-        t.start=days[0];
-        t.dur=Math.max(1,days[days.length-1]-days[0]+1);
-      }
+      // Do NOT rewrite t.start/t.dur — that is auto-schedule's job
+      // computeAllSchedules is display-only: it builds _sched for bar heights
     });
   });
 }
@@ -3118,6 +3212,8 @@ function openEditTask(id){
     _taskTeams=Object.entries(teamMap).map(([teamId,entries])=>({teamId,entries}));
   }
   renderTeamResList();
+  _loadSubtasksIntoModal(t.subtasks||[]);
+  _updateTotalWithSubs();
   _renderTaskMilestones(id);
   OM('m-task');
 }
@@ -3249,6 +3345,7 @@ window.saveTask=()=>{
     if(_undoneSt.length) diffs.push(`subtask reopened: ${_undoneSt.join(', ')}`);
     // Team
     if((t.teamId||'')!==(data.teamId||'')) diffs.push(`team: ${_tn(t.teamId)} → ${_tn(data.teamId)}`);
+    if(S._addChildParentId&&!S.editId){data.parentId=S._addChildParentId;S._addChildParentId=null;}else if(!S.editId)data.parentId=null;
     Object.assign(t,data);
     persistState(['tasks'],{tasks:[t.id]}); // immediate targeted save
     addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
@@ -3598,11 +3695,19 @@ window.delRes=(id)=>{
 // ============================================================
 const PROJ_STAT_LABELS={active:'Active',planning:'Planning',on_hold:'On Hold',completed:'Completed',cancelled:'Cancelled'};
 const PROJ_STAT_COLS={active:'var(--ok)',planning:'var(--acc)',on_hold:'var(--warn)',completed:'var(--fg2)',cancelled:'var(--danger)'};
+
+window.selectProjectAndGoGantt=(projId)=>{
+  S._activeProjId=projId;
+  const sel=document.getElementById('proj-selector');
+  if(sel) sel.value=projId;
+  nav('gantt');
+};
+
 function renderProjects(){
   document.getElementById('proj-b').innerHTML=PROJECTS.map((p,i)=>`<tr>
     <td style="display:flex;align-items:center;gap:7px">
       <span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span>
-      <span style="font-weight:500;font-size:11px;color:var(--fg0)">${p.name}</span>
+      <span style="font-weight:500;font-size:11px;color:var(--fg0);cursor:pointer" onclick="selectProjectAndGoGantt('${p.id}')" title="Open in Gantt">${p.name}</span>
     </td>
     <td style="font-size:11px;color:var(--fg2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.desc||'—'}</td>
     <td><input type="color" value="${p.color}" onchange="PROJECTS[${i}].color=this.value;renderProjects()" style="width:34px;height:28px;border:none;background:none;cursor:pointer"></td>
@@ -3642,6 +3747,7 @@ function openEditProject(id){
   document.getElementById('mpr-start').value=p.start||'';
   document.getElementById('mpr-dl').value=p.deadline||'';
   document.getElementById('mpr-tags').value=(p.tags||[]).join(', ');
+  const _orderEl=document.getElementById('mpr-order'); if(_orderEl) _orderEl.value=p.orderId||'';
   OM('m-project');
 }
 window.openEditProject=openEditProject;
@@ -3657,6 +3763,7 @@ window.saveProject=()=>{
     start:document.getElementById('mpr-start').value||null,
     deadline:document.getElementById('mpr-dl').value||null,
     tags:document.getElementById('mpr-tags').value.split(',').map(x=>x.trim()).filter(Boolean),
+    orderId:document.getElementById('mpr-order')?.value.trim()||null,
   };
   if(_editProjId){
     const p=PROJECTS.find(x=>x.id===_editProjId);
@@ -3858,23 +3965,28 @@ function _scheduleResource(resId, tasks){
     }
   });
 
-  // Build items: tasks + subtasks, ordered by current Gantt start (stable by TASKS index)
+  // Build items: tasks + subtasks for this resource
+  // Task added if its primary resId matches AND it has hours
+  // Subtasks added if their resId (or parent resId fallback) matches — regardless of parent's resId
   const items=[];
   tasks.forEach((t,ti)=>{
-    if(t.resId!==resId) return;
-    if(t.status==='done'||t.status==='cancelled'||t.status==='doing'||t.timeMode==='daily') return;
-    const h=tHours(t); if(!(h>0)) return;
-    items.push({isSub:false, t, st:null, hours:h, sortKey:(t.start||GANTT_TODAY)*10000+ti});
-    // Subtasks for this resource
+    // Task itself — only if assigned to this resource and has hours
+    if(t.resId===resId){
+      if(!(t.status==='done'||t.status==='cancelled'||t.status==='doing'||t.timeMode==='daily')){
+        const h=tHours(t);
+        if(h>0) items.push({isSub:false, t, hours:h, sortKey:(t.start||GANTT_TODAY)*10000+ti});
+      }
+    }
+    // Subtasks — regardless of parent task's resId
     (t.subtasks||[]).forEach((st,si)=>{
-      if((st.resId||t.resId)!==resId) return;
+      const stRes=st.resId||t.resId;
+      if(stRes!==resId) return;
       if(st.status==='done'||st.status==='cancelled') return;
       if(!st.name?.trim()||!(st.hours>0)) return;
       items.push({isSub:true, t, st, hours:st.hours, sortKey:(t.start||GANTT_TODAY)*10000+ti+si*0.1});
     });
   });
 
-  // Sort by current Gantt start order
   items.sort((a,b)=>a.sortKey-b.sortKey);
 
   let moved=0; const changedIds=[];
@@ -3882,7 +3994,6 @@ function _scheduleResource(resId, tasks){
   items.forEach(item=>{
     let rem=item.hours, day=GANTT_TODAY, sDay=null, eDay=null, iter=0;
     const taskId=item.isSub?null:item.t.id;
-    // Skip leading NW days
     while(isNW(day,taskId,resId)&&iter++<30) day++;
     iter=0;
     while(rem>0.001&&iter++<500){
@@ -3921,14 +4032,20 @@ window.autoScheduleRes=(resId)=>{
     if(projId && t.projId!==projId) return false;
     return true;
   });
-  if(!tasks.filter(t=>t.resId===resId&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='doing'&&t.timeMode!=='daily').length){
-    notify('No tasks to schedule for this resource','info'); return;
-  }
+  // Check if resource has any work to schedule (tasks or subtasks)
+  const hasWork=tasks.some(t=>{
+    if(t.resId===resId&&!(t.status==='done'||t.status==='cancelled'||t.status==='doing'||t.timeMode==='daily')&&tHours(t)>0) return true;
+    return (t.subtasks||[]).some(st=>(st.resId||t.resId)===resId&&st.hours>0&&st.status!=='done'&&st.status!=='cancelled'&&st.name?.trim());
+  });
+  if(!hasWork){ notify('No tasks to schedule for this resource','info'); return; }
   const {moved, changedIds}=_scheduleResource(resId, tasks);
   notify('Auto ('+( getRes(resId)?.name||resId )+'): '+moved+' task'+(moved!==1?'s':'')+' rescheduled','success');
   if(changedIds.length) persistState(['tasks'],{tasks:changedIds});
   renderGantt(); renderDash();
 };
+
+
+window.openAddChildTask=(parentId)=>{S._addChildParentId=parentId;openAddTask();const parent=TASKS.find(t=>t.id===parentId);if(parent){const ps=document.getElementById('mt-proj');if(ps&&parent.projId)ps.value=parent.projId;}document.getElementById('mt-h').textContent='Add Sub-Task';};
 
 window.autoSchedule=()=>{
   if(!confirm('Auto-schedule: pack tasks from today in Gantt order, filling daily capacity.\n\nContinue?')) return;
@@ -3937,7 +4054,11 @@ window.autoSchedule=()=>{
     if(projId && t.projId!==projId) return false;
     return true;
   });
-  const resIds=new Set(tasks.map(t=>t.resId).filter(Boolean));
+  const resIds=new Set();
+  tasks.forEach(t=>{
+    if(t.resId) resIds.add(t.resId);
+    (t.subtasks||[]).forEach(st=>{ if(st.resId) resIds.add(st.resId); });
+  });
   let totalMoved=0; const allChanged=[];
   resIds.forEach(resId=>{
     const {moved, changedIds}=_scheduleResource(resId, tasks);
@@ -5017,7 +5138,7 @@ function startSSE(){
       // Run migration on received data
       migrateTasks();
       const p=S.page;
-      if(p==='gantt')         {buildSFChips();buildTagPanel();renderGantt();}
+      if(p==='gantt')         {buildSFChips();buildTagPanel();clearTimeout(window._sseRG);window._sseRG=setTimeout(renderGantt,150);}
       else if(p==='dashboard') renderDash();
       else if(p==='projects')  renderProjects();
       else if(p==='resources') renderRes();
@@ -5466,7 +5587,7 @@ function renderHowTo(){
 <div class="ht-wrap">
 <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
   <span style="font-size:20px;font-weight:700;color:var(--fg0)">Progest — How To Use</span>
-  <span style="font-size:10px;color:var(--fg3)">v0.3</span>
+  <span style="font-size:10px;color:var(--fg3)">v0.4</span>
 </div>
 <p style="font-size:11px;color:var(--fg3);margin-bottom:16px">Click any section to expand. Sections marked <span style="color:#f59e0b;font-weight:700">Team Leader</span> or <span style="color:#8b5cf6;font-weight:700">Admin</span> require those roles.</p>
 
@@ -6215,119 +6336,279 @@ function updateTimerToggle(){
 function renderProduction(){
   const el=document.getElementById('prod-content');
   if(!el) return;
-
-  // Populate order dropdown from projects
-  const sel=document.getElementById('prod-order-sel');
-  if(sel){
-    const opts=PROJECTS.filter(p=>p.order).map(p=>`<option value="${p.id}">${p.name} — ${p.order}</option>`).join('');
-    sel.innerHTML='<option value="">— select order —</option>'+opts;
+  const data=window._prodData;
+  if(!data||!data.length){
+    el.innerHTML='<div style="padding:40px;text-align:center;color:var(--fg3);font-size:13px">No data — click <b>📂 Load JSON</b> to import a pending lines file.</div>';
+    return;
   }
 
-  // Example fixed data (replace with DB query later)
-  const example={
-    order:'ENC-2026-042',
-    project:'PAZZI',
-    lmts:[
-      {id:'LMT-001',name:'Aprovação de materiais',date:'2026-05-05',status:'pending',qty:150,unit:'pcs'},
-      {id:'LMT-002',name:'Entrega componentes CFP',date:'2026-05-12',status:'pending',qty:48,unit:'pcs'},
-      {id:'LMT-003',name:'Certificação CE',date:'2026-05-20',status:'done',qty:1,unit:'doc'},
-      {id:'LMT-004',name:'Teste de produção',date:'2026-05-28',status:'pending',qty:5,unit:'units'},
-    ],
-    ofs:[
-      {id:'OF-2026-112',name:'Montagem robô CFP',status:'open',qty:2,due:'2026-05-08',progress:35},
-      {id:'OF-2026-113',name:'Calibração sensores',status:'open',qty:10,due:'2026-05-15',progress:10},
-      {id:'OF-2026-114',name:'Embalagem final',status:'pending',qty:2,due:'2026-05-25',progress:0},
-      {id:'OF-2026-110',name:'Suporte shovel fitting',status:'closed',qty:1,due:'2026-04-20',progress:100},
-    ]
+  // Filter state
+  if(window._prodFilterMy===undefined) window._prodFilterMy=true;
+  // Default visible columns
+  const ALL_COLS=['Documento','DataEntrega','CodigoArtigo','NomeArtigo','Qtd','QtdTransferida','QtdPendente','Obra','IdLinha'];
+  if(!window._prodCols) window._prodCols=['Documento','DataEntrega','CodigoArtigo','NomeArtigo','Qtd','QtdTransferida','QtdPendente'];
+
+  const search=(document.getElementById('prod-search')?.value||'').toLowerCase();
+  const sortBy=document.getElementById('prod-sort')?.value||'date';
+
+  // Update filter button
+  const fbtn=document.getElementById('prod-filter-btn');
+  if(fbtn){
+    const canAll=isPM();
+    fbtn.style.display=canAll?'':'none';
+    fbtn.textContent=window._prodFilterMy?'🔒 My Projects':'🌐 All Orders';
+    fbtn.style.opacity=window._prodFilterMy?'1':'0.6';
+  }
+
+  // Build set of orderIds linked to projects
+  const linkedOrderIds=new Set(PROJECTS.map(p=>p.orderId).filter(Boolean));
+
+  // Filter lines
+  let lines=data.filter(l=>{
+    if(window._prodFilterMy && !linkedOrderIds.has(l.Documento)) return false;
+    if(!search) return true;
+    return ['Documento','CodigoArtigo','NomeArtigo','Obra','IdLinha'].some(k=>(l[k]||'').toLowerCase().includes(search));
+  });
+
+  // Group by Documento
+  const byDoc={};
+  lines.forEach(l=>{
+    if(!byDoc[l.Documento]) byDoc[l.Documento]={
+      doc:l.Documento, lines:[], minDate:l.DataEntrega, maxDate:l.DataEntrega,
+      totalQty:0, totalPend:0,
+      proj:PROJECTS.find(p=>p.orderId===l.Documento)||null
+    };
+    const g=byDoc[l.Documento];
+    g.lines.push(l);
+    g.totalQty+=(l.Qtd||0);
+    g.totalPend+=(l.QtdPendente||0);
+    if(l.DataEntrega<g.minDate) g.minDate=l.DataEntrega;
+    if(l.DataEntrega>g.maxDate) g.maxDate=l.DataEntrega;
+  });
+
+  let groups=Object.values(byDoc);
+  if(sortBy==='date') groups.sort((a,b)=>a.minDate.localeCompare(b.minDate));
+  else if(sortBy==='doc') groups.sort((a,b)=>a.doc.localeCompare(b.doc));
+  else if(sortBy==='qty') groups.sort((a,b)=>b.totalPend-a.totalPend);
+
+  const today=new Date().toISOString().slice(0,10);
+  const _sd=d=>{if(!d||d==='0001-01-01')return'—';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
+  const _ov=d=>d&&d!=='0001-01-01'&&d<today;
+  const _soon=d=>{if(!d||d==='0001-01-01')return false;const diff=(new Date(d+'T00:00:00')-new Date())/(1000*86400);return diff>=0&&diff<=7;};
+
+  // Milestone diamond button
+  const msBtn=(doc,line,date,label)=>{
+    const proj=PROJECTS.find(p=>p.orderId===doc);
+    if(!proj) return '';
+    const enc=encodeURIComponent;
+    return `<button onclick="prodAddMilestone('${enc(proj.id)}','${enc(label)}','${date}')"
+      title="Add milestone to project ${proj.name}"
+      style="padding:0 5px;height:18px;font-size:9px;border-radius:4px;border:1px solid var(--acc);background:rgba(79,156,249,.1);color:var(--acc);cursor:pointer;line-height:18px">◆ MS</button>`;
   };
 
-  // Build milestone calendar
-  const today=GANTT_TODAY;
-  const calItems=[...example.lmts,...example.ofs.map(of=>({id:of.id,name:of.id+' '+of.name,date:of.due,status:of.status,type:'of'}))].sort((a,b)=>a.date>b.date?1:-1);
+  const cols=window._prodCols;
+  const colLabel={'Documento':'Order','DataEntrega':'Delivery','CodigoArtigo':'Code','NomeArtigo':'Article','Qtd':'Qty','QtdTransferida':'Transferred','QtdPendente':'Pending','Obra':'Obra ID','IdLinha':'Line ID'};
 
-  let html=`
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <div class="card"><div class="ch"><span class="ct">Order</span></div>
-      <div class="cb">
-        <div style="font-size:22px;font-weight:700;color:var(--fg0);margin-bottom:4px">${example.order}</div>
-        <div style="font-size:11px;color:var(--fg2)">Project: ${example.project}</div>
-        <div style="font-size:11px;color:var(--fg3);margin-top:8px">⚠ Liga à base de dados para dados reais</div>
+  let H=`<div style="font-size:11px;color:var(--fg3);margin-bottom:10px">${groups.length} orders · ${lines.length} lines · ${lines.reduce((a,l)=>a+(l.QtdPendente||0),0).toFixed(0)} units pending</div>`;
+
+  groups.forEach(g=>{
+    const ov=_ov(g.minDate); const soon=_soon(g.minDate);
+    const borderCol=ov?'var(--danger)':soon?'var(--warn)':'var(--bd)';
+    const bgCol=ov?'rgba(220,38,38,.05)':soon?'rgba(245,158,11,.05)':'var(--bg1)';
+    const dateRange=g.minDate===g.maxDate?_sd(g.minDate):`${_sd(g.minDate)} → ${_sd(g.maxDate)}`;
+
+    H+=`<div style="border:1px solid ${borderCol};border-radius:10px;margin-bottom:8px;overflow:hidden;background:${bgCol}">
+      <!-- Order header -->
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none"
+           onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.pa').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼'">
+        <span class="pa" style="font-size:10px;color:var(--fg3);width:10px;flex-shrink:0">▼</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:var(--fg0)">Order ${g.doc}</span>
+            ${g.proj?`<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:${g.proj.color||'var(--acc)'}22;color:${g.proj.color||'var(--acc)'};">${g.proj.name}</span>`:''}
+            ${ov?'<span style="font-size:9px;font-weight:700;color:var(--danger)">⚠ OVERDUE</span>':soon?'<span style="font-size:9px;font-weight:700;color:var(--warn)">⏰ DUE SOON</span>':''}
+          </div>
+          <div style="font-size:10px;color:var(--fg3);margin-top:2px">${g.lines.length} line${g.lines.length!==1?'s':''} · ${g.totalPend.toFixed(0)} units pending</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${g.proj?msBtn(g.doc,null,g.minDate,`Order ${g.doc} delivery`):''}
+          <div style="text-align:right">
+            <div style="font-size:12px;font-weight:600;color:${ov?'var(--danger)':soon?'var(--warn)':'var(--fg0)'}">${dateRange}</div>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="card"><div class="ch"><span class="ct">Resumo</span></div>
-      <div class="cb" style="display:flex;gap:20px;flex-wrap:wrap">
-        <div><div style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px">LMTs</div><div style="font-size:24px;font-weight:700;color:var(--acc)">${example.lmts.length}</div><div style="font-size:9px;color:var(--fg3)">${example.lmts.filter(l=>l.status==='pending').length} pending</div></div>
-        <div><div style="font-size:9px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px">OFs</div><div style="font-size:24px;font-weight:700;color:var(--acc2)">${example.ofs.length}</div><div style="font-size:9px;color:var(--fg3)">${example.ofs.filter(o=>o.status==='open').length} abertas</div></div>
+      <!-- Lines table -->
+      <div style="border-top:1px solid var(--bd);overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:500px">
+          <thead>
+            <tr style="background:var(--bg2)">
+              ${cols.map(col=>`<th style="padding:5px 10px;text-align:${['Qtd','QtdTransferida','QtdPendente'].includes(col)?'right':'left'};color:var(--fg3);font-weight:600;white-space:nowrap">${colLabel[col]||col}</th>`).join('')}
+              <th style="padding:5px 10px;text-align:center;color:var(--fg3);font-weight:600;white-space:nowrap">Milestone</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${g.lines.map((l,i)=>{
+              const lov=_ov(l.DataEntrega); const lsoon=_soon(l.DataEntrega);
+              return `<tr style="border-top:1px solid var(--bd);background:${i%2?'var(--bg2)':'transparent'}">
+                ${cols.map(col=>{
+                  let val=l[col];
+                  if(['Qtd','QtdTransferida','QtdPendente'].includes(col)){
+                    const num=(val||0);
+                    const color=col==='QtdPendente'?(num>0?'var(--warn)':'var(--ok)'):col==='QtdTransferida'?'var(--ok)':'var(--fg1)';
+                    return `<td style="padding:5px 10px;text-align:right;font-weight:${col==='QtdPendente'?'600':'400'};color:${color}">${num.toFixed(0)}</td>`;
+                  }
+                  if(col==='DataEntrega'){
+                    return `<td style="padding:5px 10px;white-space:nowrap;color:${lov?'var(--danger)':lsoon?'var(--warn)':'var(--fg0)'}">
+                      ${_sd(val)}${lov?' ⚠':lsoon?' ⏰':''}</td>`;
+                  }
+                  if(col==='CodigoArtigo') return `<td style="padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--fg3);white-space:nowrap">${val||'—'}</td>`;
+                  if(col==='Obra'||col==='IdLinha') return `<td style="padding:5px 10px;font-family:var(--mono);font-size:9px;color:var(--fg3);white-space:nowrap">${(val||'').slice(0,18)}…</td>`;
+                  return `<td style="padding:5px 10px;color:var(--fg0)">${val||'—'}</td>`;
+                }).join('')}
+                <td style="padding:5px 10px;text-align:center">${g.proj?msBtn(g.doc,l,l.DataEntrega,`${l.CodigoArtigo||l.NomeArtigo}`):'—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
       </div>
-    </div>
-  </div>
+    </div>`;
+  });
 
-  <!-- Marco calendar -->
-  <div class="card" style="margin-bottom:16px">
-    <div class="ch"><span class="ct">Milestone calendar</span><span style="font-size:9px;color:var(--fg3)">LMTs + OFs por data</span></div>
-    <div class="cb" style="overflow-x:auto">
-      <div style="display:flex;flex-direction:column;gap:6px;min-width:500px">
-        ${calItems.map(item=>{
-          const dIdx=dateToIdx(item.date);
-          const isPast=dIdx<today;
-          const isDone=item.status==='done'||item.status==='closed';
-          const col=isDone?'var(--ok)':isPast?'var(--danger)':'var(--acc)';
-          const isOf=item.id&&item.id.startsWith('OF');
-          return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--bg2);border-radius:8px;border-left:3px solid ${col}">
-            <div style="font-size:9px;font-family:var(--mono);color:${col};white-space:nowrap">${item.date}</div>
-            <div style="flex:1">
-              <div style="font-size:11px;font-weight:600;color:var(--fg0)">${item.name}</div>
-              <div style="font-size:9px;color:var(--fg3)">${isOf?'OF':'LMT'} · ${item.qty||''} ${item.unit||''}</div>
-            </div>
-            <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:${isDone?'rgba(34,197,94,.15)':isPast?'rgba(240,82,82,.15)':'rgba(79,156,249,.12)'};color:${col}">${isDone?'✓ Completed':isPast?'⚠ Overdue':'Pending'}</span>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>
-  </div>
-
-  <!-- LMTs table -->
-  <div class="card" style="margin-bottom:16px">
-    <div class="ch"><span class="ct">LMTs — Materials & Techniques</span></div>
-    <div class="cb" style="padding:0">
-      <table class="dt"><thead><tr>
-        <th>ID</th><th>Descrição</th><th>Data</th><th>Qtd</th><th>Estado</th>
-      </tr></thead><tbody>
-        ${example.lmts.map(l=>`<tr>
-          <td style="font-family:var(--mono);font-size:10px">${l.id}</td>
-          <td>${l.name}</td>
-          <td style="font-family:var(--mono);font-size:10px">${l.date}</td>
-          <td>${l.qty} ${l.unit}</td>
-          <td><span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:${l.status==='done'?'rgba(34,197,94,.15)':'rgba(79,156,249,.12)'};color:${l.status==='done'?'var(--ok)':'var(--acc)'}">${l.status==='done'?'✓ Completed':'Pending'}</span></td>
-        </tr>`).join('')}
-      </tbody></table>
-    </div>
-  </div>
-
-  <!-- OFs table -->
-  <div class="card">
-    <div class="ch"><span class="ct">OFs — Production Orders</span></div>
-    <div class="cb" style="padding:0">
-      <table class="dt"><thead><tr>
-        <th>OF</th><th>Descrição</th><th>Prazo</th><th>Qtd</th><th>Progresso</th><th>Estado</th>
-      </tr></thead><tbody>
-        ${example.ofs.map(o=>{
-          const col=o.status==='closed'?'var(--ok)':o.status==='open'?'var(--acc)':'var(--fg2)';
-          return `<tr>
-            <td style="font-family:var(--mono);font-size:10px">${o.id}</td>
-            <td>${o.name}</td>
-            <td style="font-family:var(--mono);font-size:10px">${o.due}</td>
-            <td>${o.qty}</td>
-            <td style="min-width:100px"><div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${o.progress}%;background:${col}"></div></div><div style="font-size:8px;color:var(--fg3);margin-top:2px">${o.progress}%</div></td>
-            <td><span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:${o.status==='closed'?'rgba(34,197,94,.15)':o.status==='open'?'rgba(79,156,249,.12)':'rgba(110,126,158,.1)'};color:${col}">${o.status==='closed'?'✓ Closed':o.status==='open'?'Open':'Pending'}</span></td>
-          </tr>`;
-        }).join('')}
-      </tbody></table>
-    </div>
-  </div>`;
-
-  el.innerHTML=html;
+  if(!groups.length) H+='<div style="padding:40px;text-align:center;color:var(--fg3)">No orders found'+( search?` for "${search}"`:'')+(window._prodFilterMy?' — try switching to All Orders':'')+' </div>';
+  el.innerHTML=H;
 }
+
+window.prodToggleFilter=()=>{
+  if(!isPM()){ notify('Only PM/Admin can view all orders','warn'); return; }
+  window._prodFilterMy=!window._prodFilterMy;
+  renderProduction();
+};
+
+window.prodAddMilestone=(projId,label,date)=>{
+  projId=decodeURIComponent(projId); label=decodeURIComponent(label);
+  const proj=PROJECTS.find(p=>p.id===projId);
+  if(!proj){ notify('Project not found','warn'); return; }
+  const name=prompt('Milestone name:',label);
+  if(!name) return;
+  const idx=dateToIdx(date);
+  if(!idx){ notify('Invalid date','warn'); return; }
+  MILESTONES.push({id:'ms'+Date.now().toString(36),name,dayIdx:idx,color:proj.color||'#7b61ff',taskIds:[],projId,shape:'diamond'});
+  addLog({type:'milestone',task:name,from:'',to:'created from Production ('+proj.name+')'});
+  persistState(['milestones']);
+  notify('Milestone "'+name+'" added to '+proj.name,'success');
+  renderGantt();
+};
+
+window.prodCols=()=>{
+  const ALL=['Documento','DataEntrega','CodigoArtigo','NomeArtigo','Qtd','QtdTransferida','QtdPendente','Obra','IdLinha'];
+  const labels={'Documento':'Order','DataEntrega':'Delivery','CodigoArtigo':'Code','NomeArtigo':'Article','Qtd':'Qty','QtdTransferida':'Transferred','QtdPendente':'Pending','Obra':'Obra ID','IdLinha':'Line ID'};
+  const cur=window._prodCols||[];
+  const old=document.getElementById('_prodColsPanel');
+  if(old){old.remove();return;}
+  const panel=document.createElement('div');
+  panel.id='_prodColsPanel';
+  panel.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;background:var(--bg2);border:1px solid var(--bd2);border-radius:12px;padding:16px;min-width:220px;box-shadow:0 4px 20px rgba(0,0,0,.5)';
+  panel.innerHTML='<div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--fg0)">Visible columns</div>'+
+    ALL.map(col=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;color:var(--fg1)">
+      <input type="checkbox" ${cur.includes(col)?'checked':''} onchange="prodToggleCol('${col}',this.checked)" style="accent-color:var(--acc)">
+      ${labels[col]||col}</label>`).join('')+
+    '<button onclick="document.getElementById(\'_prodColsPanel\')?.remove()" style="margin-top:10px;width:100%;" class="btn btn-sm btn-p">Done</button>';
+  document.body.appendChild(panel);
+};
+
+window.prodToggleCol=(col,on)=>{
+  if(!window._prodCols) window._prodCols=['Documento','DataEntrega','CodigoArtigo','NomeArtigo','Qtd','QtdTransferida','QtdPendente'];
+  if(on){ if(!window._prodCols.includes(col)) window._prodCols.push(col); }
+  else { window._prodCols=window._prodCols.filter(c=>c!==col); }
+  renderProduction();
+};
+
+window.prodLoadFile=()=>{
+  // Reset input so same file can be selected again
+  const inp=document.getElementById('prod-file-input');
+  if(!inp) return;
+  inp.value='';
+  inp.click();
+};
+
+window.prodFileChanged=(input)=>{
+  const file=input.files[0];
+  if(!file){ return; }
+  if(!file.name.endsWith('.json')){
+    prodShowMsg('Please select a .json file.','error'); return;
+  }
+  const reader=new FileReader();
+  reader.onerror=()=>prodShowMsg('Error reading file.','error');
+  reader.onload=e=>{
+    try{
+      let text=e.target.result;
+      // Strip UTF-8 BOM if present
+      if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+      // Strip line breaks that may appear inside numbers in this JSON
+      while(text.indexOf('\r')>=0||text.indexOf('\n')>=0){ text=text.split('\r').join('').split('\n').join(''); }
+      const data=JSON.parse(text);
+      const lines=data.LinhasPendentes||data||[];
+      if(!Array.isArray(lines)||!lines.length){
+        prodShowMsg('File loaded but no lines found (expected "LinhasPendentes" array).','error');
+        return;
+      }
+      window._prodData=lines;
+      const ts=new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      try{ sessionStorage.setItem('pg_prod',JSON.stringify({data:lines,ts})); }catch(e){}
+      // Save to Firebase so all users see the same data
+      fetch(_FB_ROOT+'/production.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({data:lines,ts,file:file.name})})
+        .then(()=>prodShowMsg('Loaded & saved: '+lines.length+' lines from '+file.name,'ok'))
+        .catch(()=>prodShowMsg('Loaded '+lines.length+' lines (Firebase save failed)','ok'));
+      const upd=document.getElementById('prod-updated');
+      if(upd) upd.textContent='Last loaded: '+ts+' — '+file.name+' ('+lines.length+' lines)';
+      renderProduction();
+    }catch(err){
+      prodShowMsg('Invalid JSON: '+err.message,'error');
+    }
+  };
+  reader.readAsText(file,'utf-8');
+};
+
+function prodShowMsg(msg,type){
+  const el=document.getElementById('prod-content');
+  if(!el) return;
+  const col=type==='error'?'var(--danger)':type==='ok'?'var(--ok)':'var(--fg2)';
+  const banner=document.createElement('div');
+  banner.style.cssText='padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:10px;background:'+
+    (type==='error'?'rgba(220,38,38,.1)':'rgba(34,197,94,.1)')+';color:'+col+';border:1px solid '+col;
+  banner.textContent=msg;
+  el.prepend(banner);
+  setTimeout(()=>banner.remove(),5000);
+}
+
+// Load prod data from Firebase (authoritative) then fallback to sessionStorage
+(async()=>{
+  try{
+    const r=await fetch(_FB_ROOT+'/production.json');
+    if(r.ok){
+      const d=await r.json();
+      if(d&&d.data&&d.data.length){
+        window._prodData=d.data;
+        try{sessionStorage.setItem('pg_prod',JSON.stringify(d));}catch(e){}
+        const upd=document.getElementById('prod-updated');
+        if(upd) upd.textContent='Last loaded: '+(d.ts||'—')+' — '+(d.file||'')+(d.data?' ('+d.data.length+' lines)':'');
+        if(S.page==='production') renderProduction();
+        return;
+      }
+    }
+  }catch(e){}
+  // Fallback to sessionStorage
+  try{
+    const saved=sessionStorage.getItem('pg_prod');
+    if(saved){
+      const parsed=JSON.parse(saved);
+      window._prodData=parsed.data||parsed;
+      const upd=document.getElementById('prod-updated');
+      if(upd&&parsed.ts) upd.textContent='Last loaded: '+parsed.ts+' (cached)';
+    }
+  }catch(e){}
+})();
 window.renderProduction=renderProduction;
 
 
