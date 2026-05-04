@@ -823,7 +823,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
           </select>
         </div>
         <div class="fg" id="fg-dep-task" style="margin-bottom:0;display:none">
-          <select class="fi" id="mt-dep-id"><option value="">— select task —</option></select>
+          <select class="fi" id="mt-dep-id" style="font-size:11px"><option value="">— no dependency —</option></select>
         </div>
         <div class="fg" id="fg-dep-res" style="margin-bottom:0;display:none">
           <select class="fi" id="mt-dep-res-id"><option value="">— select —</option></select>
@@ -1790,6 +1790,64 @@ function _subHoursOnDay(s, t, day){
   return 0;
 }
 
+
+// ── Hierarchical inheritance helpers ─────────────────────────
+// Get the most restrictive deadline: task's own OR parent chain minimum
+function getEffectiveDeadline(t){
+  let dl=t.deadline||null;
+  let cur=t;
+  while(cur.parentId){
+    cur=TASKS.find(x=>x.id===cur.parentId);
+    if(!cur) break;
+    if(cur.deadline){
+      if(!dl||cur.deadline<dl) dl=cur.deadline;
+    }
+  }
+  return dl;
+}
+
+// Get the earliest start constraint from parent chain (depType/depId/depUntil)
+function getEffectiveDep(t){
+  // Own dependency takes priority; if not set, walk up
+  if(t.depType) return {depType:t.depType,depId:t.depId,depUntil:t.depUntil};
+  let cur=t;
+  while(cur.parentId){
+    cur=TASKS.find(x=>x.id===cur.parentId);
+    if(!cur) break;
+    if(cur.depType) return {depType:cur.depType,depId:cur.depId,depUntil:cur.depUntil};
+  }
+  return {depType:null,depId:null,depUntil:null};
+}
+
+// Get all milestones that apply to this task (own + inherited from parents)
+function getEffectiveMilestones(taskId){
+  const ids=new Set();
+  let cur=TASKS.find(t=>t.id===taskId);
+  while(cur){
+    MILESTONES.forEach(m=>{if((m.taskIds||[]).includes(cur.id)) ids.add(m.id);});
+    cur=cur.parentId?TASKS.find(t=>t.id===cur.parentId):null;
+  }
+  return [...ids].map(id=>MILESTONES.find(m=>m.id===id)).filter(Boolean);
+}
+
+// Get the minimum dep start from parent chain (for auto-schedule)
+function getEffectiveMinStart(t){
+  const dep=getEffectiveDep(t);
+  if(!dep.depType) return null;
+  if(dep.depType==='task'&&dep.depId){
+    const depTask=TASKS.find(x=>x.id===dep.depId);
+    if(depTask&&depTask.status!=='done'){
+      const depEnd=tEnd(depTask);
+      if(depEnd) return depEnd+1; // start after dep ends
+    }
+  }
+  if(dep.depType==='resource'&&dep.depUntil){
+    const mi=dateToIdx(dep.depUntil);
+    if(mi) return mi+1;
+  }
+  return null;
+}
+
 function renderGantt(){
   flattenSubtasksToTasks(); // ensure legacy subtasks are in TASKS[]
   document.getElementById('sb-tc').textContent=TASKS.length;
@@ -2065,11 +2123,13 @@ function renderGantt(){
       ? t.resHours[viewResId]
       : tHours(t);
     const td2=tDur(t), te=tEnd(t);
-    const dlDay=t.deadline?dateToIdx(t.deadline):null;
+    const _effDl=getEffectiveDeadline(t);
+    const dlDay=_effDl?dateToIdx(_effDl):null;
     const isOv=dlDay&&te>dlDay&&!isDone;
     const inc=isInc(t);
-    const depBl=t.depType==='task'&&t.depId&&TASKS.find(x=>x.id===t.depId&&x.status!=='done')
-              || t.depType==='resource'&&t.depUntil&&dateToIdx(t.depUntil)>=GANTT_TODAY;
+    const _td=getEffectiveDep(t);
+    const depBl=(_td.depType==='task'&&_td.depId&&TASKS.find(x=>x.id===_td.depId&&x.status!=='done'))
+              || (_td.depType==='resource'&&_td.depUntil&&dateToIdx(_td.depUntil)>=GANTT_TODAY);
     // Color by viewResId team in resource view, otherwise primary resource
     const displayResId=viewResId||t.resId;
     const r=getRes(displayResId||t.resId);
@@ -2492,9 +2552,9 @@ function computeAllSchedules(){
       // Never schedule non-done tasks in the past
       const baseStart = t.start||GANTT_TODAY; // always use task's saved start date
       let minStart=nextWorkDay(baseStart);
-      if(t.depType==='task'&&t.depId){
-        const dep=TASKS.find(x=>x.id===t.depId);
-        if(dep&&dep.start) minStart=Math.max(minStart,nextWorkDay(tEnd(dep)+1));
+      if(t.depType==='task'){
+        const _dids=[...(t.depIds||[]),t.depId].filter(Boolean);
+        _dids.forEach(did=>{ const dep=TASKS.find(x=>x.id===did); if(dep&&dep.start) minStart=Math.max(minStart,nextWorkDay(tEnd(dep)+1)); });
       }
       if(t.depType==='resource'&&t.depUntil){
         const mi=dateToIdx(t.depUntil);
@@ -3098,8 +3158,21 @@ window.onDepTypeChange=function(){
   if(v==='task'){
     // Populate task select (exclude currently editing task)
     const sel=document.getElementById('mt-dep-id');
-    sel.innerHTML='<option value="">— select task —</option>'+
-      TASKS.filter(t=>t.id!==S.editId).map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+    sel.innerHTML='<option value="">— no dependency —</option>'+
+            (()=>{
+      // Build hierarchical task list filtered by active project
+      const _projId=S._activeProjId||document.getElementById('mt-proj')?.value||null;
+      const _opts=[];
+      function _addOpt(t,depth){
+        if(t.id===S.editId) return;
+        const indent='  '.repeat(depth);
+        _opts.push(`<option value="${t.id}" ${(false)?'selected':''}>${indent}${depth>0?'⤷ ':''}${t.name}</option>`);
+        TASKS.filter(ch=>ch.parentId===t.id).forEach(ch=>_addOpt(ch,depth+1));
+      }
+      const roots=TASKS.filter(t=>!t.parentId&&(!_projId||t.projId===_projId));
+      roots.forEach(t=>_addOpt(t,0));
+      return _opts.join('');
+    })();
   }
   if(v==='resource'){
     const sel=document.getElementById('mt-dep-res-id');
@@ -3120,7 +3193,20 @@ function loadDepFields(t){
   if(dt==='task'){
     const sel=document.getElementById('mt-dep-id');
     sel.innerHTML='<option value="">— select task —</option>'+
-      TASKS.filter(x=>x.id!==t.id).map(x=>`<option value="${x.id}" ${x.id===t.depId?'selected':''}>${x.name}</option>`).join('');
+            (()=>{
+      // Build hierarchical task list filtered by active project
+      const _projId=S._activeProjId||document.getElementById('mt-proj')?.value||null;
+      const _opts=[];
+      function _addOpt(t,depth){
+        if(t.id===t.id) return;
+        const indent='  '.repeat(depth);
+        _opts.push(`<option value="${t.id}" ${(x.id===t.depId)?'selected':''}>${indent}${depth>0?'⤷ ':''}${t.name}</option>`);
+        TASKS.filter(ch=>ch.parentId===t.id).forEach(ch=>_addOpt(ch,depth+1));
+      }
+      const roots=TASKS.filter(t=>!t.parentId&&(!_projId||t.projId===_projId));
+      roots.forEach(t=>_addOpt(t,0));
+      return _opts.join('');
+    })();
     document.getElementById('fg-dep-task').style.display='';
     document.getElementById('fg-dep-note').style.display='';
   } else if(dt==='resource'){
@@ -3250,7 +3336,9 @@ window.saveTask=()=>{
   const holdResId=null;
   const holdBlocker=document.getElementById('mt-hld-inp').value||null;
   const depType=document.getElementById('mt-dep-type').value||null;
-  const depId=depType==='task'?(document.getElementById('mt-dep-id').value||null):null;
+  const _depSel=document.getElementById('mt-dep-id');
+  const depIds=depType==='task'?[..._depSel.selectedOptions].map(o=>o.value).filter(v=>v&&v!==''):[];
+  const depId=depIds[0]||null; // keep single for backward compat
   const depResId=depType==='resource'?(document.getElementById('mt-dep-res-id').value||null):null;
   const depUntil=depType==='resource'?(document.getElementById('mt-dep-until').value||null):null;
   const depNote=depType?(document.getElementById('mt-dep-note').value||null):null;
@@ -3992,7 +4080,9 @@ function _scheduleResource(resId, tasks){
   let moved=0; const changedIds=[];
 
   items.forEach(item=>{
-    let rem=item.hours, day=GANTT_TODAY, sDay=null, eDay=null, iter=0;
+    // Apply effective dep constraint (inherited from parent chain)
+    const _eMinStart=getEffectiveMinStart(item.isSub?item.st:item.t)||GANTT_TODAY;
+    let rem=item.hours, day=Math.max(GANTT_TODAY,_eMinStart), sDay=null, eDay=null, iter=0;
     const taskId=item.isSub?null:item.t.id;
     while(isNW(day,taskId,resId)&&iter++<30) day++;
     iter=0;
@@ -5923,9 +6013,13 @@ window._renderMsTaskListFiltered=()=>{
   const tf=document.getElementById('ms-task-team')?.value||'';
   const rf=document.getElementById('ms-task-res')?.value||'';
 
+  // Filter by active project if one is selected
+  const _msProjId=document.getElementById('ms-proj')?.value||S._activeProjId||null;
+  const projFilter=t=>!_msProjId||(t.projId===_msProjId);
+
   // Selected tasks always shown first; unselected filtered by search
-  const selected=TASKS.filter(t=>sel.has(t.id));
-  const unselected=TASKS.filter(t=>!sel.has(t.id)&&(
+  const selected=TASKS.filter(t=>sel.has(t.id)&&projFilter(t));
+  const unselected=TASKS.filter(t=>!sel.has(t.id)&&projFilter(t)&&(
     (!q||t.name.toLowerCase().includes(q))&&
     (!tf||(t.teamId===tf||(t.teamIds||[]).includes(tf)))&&
     (!rf||t.resId===rf)
@@ -6271,7 +6365,7 @@ function renderGanttWeek(){
     const barColor=t.teamId?(getTeam(t.teamId)?.color||'#7a8aaa'):'#7a8aaa';
     const isDone=t.status==='done';
     const isHold=t.status==='hold';
-    const isOv=t.deadline&&!isDone&&tEnd(t)>dateToIdx(t.deadline);
+    const isOv=getEffectiveDeadline(t)&&!isDone&&tEnd(t)>dateToIdx(getEffectiveDeadline(t));
 
     H+=`<tr ondblclick="openEditTask('${t.id}')" oncontextmenu="showCtx(event,'${t.id}')">
       <td style="position:sticky;left:0;background:var(--bg1);padding:3px 8px;z-index:1">
@@ -6899,8 +6993,12 @@ function _renderTaskMilestones(taskId){
     wrap.innerHTML='<span style="font-size:10px;color:var(--fg3)">Save task first to associate milestones</span>';
     return;
   }
-  const assoc=MILESTONES.filter(m=>(m.taskIds||[]).includes(taskId));
-  const unassoc=MILESTONES.filter(m=>!(m.taskIds||[]).includes(taskId));
+  // Filter milestones to the task's project only
+  const _task=TASKS.find(t=>t.id===taskId);
+  const _projFilter=_task?.projId;
+  const projMs=ms=>!_projFilter||!ms.projId||ms.projId===_projFilter;
+  const assoc=MILESTONES.filter(m=>(m.taskIds||[]).includes(taskId)&&projMs(m));
+  const unassoc=MILESTONES.filter(m=>!(m.taskIds||[]).includes(taskId)&&projMs(m));
   let html='';
   if(assoc.length){
     html+=assoc.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;background:${m.color||'var(--acc2)'}22;border:1px solid ${m.color||'var(--acc2)'};border-radius:5px;padding:2px 8px;font-size:10px;color:${m.color||'var(--acc2)'}">◆ ${m.name}<span onclick="(function(){var ms=MILESTONES.find(function(x){return x.id==='${m.id}'});if(ms)ms.taskIds=(ms.taskIds||[]).filter(function(x){return x!=='${taskId}'});persistState(['milestones']);_renderTaskMilestones('${taskId}');})()" style="cursor:pointer;margin-left:3px;opacity:.6">✕</span></span>`).join('');
@@ -6914,7 +7012,7 @@ function _renderTaskMilestones(taskId){
 window._updateTaskMilestones=()=>_renderTaskMilestones(S.editId||null);
 
 function taskHasMilestone(taskId){
-  return MILESTONES.some(m=>(m.taskIds||[]).includes(taskId));
+  return getEffectiveMilestones(taskId).length>0;
 }
 
 function _checkMilestoneAutoComplete(){
