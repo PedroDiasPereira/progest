@@ -389,7 +389,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 
 <!-- SIDEBAR -->
 <nav id="sb">
-  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.4</span></div></div>
+  <div class="sb-logo"><div class="sb-mark">P</div><div class="sb-txt">Progest<span>.io</span><span style="font-size:9px;color:var(--fg3);margin-left:6px;font-weight:400">v0.5</span></div></div>
   <div class="sb-sec">Main</div>
   <div class="nav on" data-page="dashboard"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".9"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/></svg>Dashboard</div>
   <div class="nav" data-page="projects"><svg class="nav-ico" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity=".9"/><rect x="8" y="1" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="5" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/><rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity=".5"/><rect x="8" y="8" width="7" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="8" y="12" width="5" height="1.5" rx=".75" fill="currentColor" opacity=".35"/></svg>Projects</div>
@@ -785,7 +785,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
 <!-- MODAL: TASK EDIT -->
 <div id="m-task" class="mbg">
 <div class="modal" style="width:660px;padding:24px 28px">
-  <div class="mt-h" id="mt-h">New Task</div>
+  <div style="display:flex;align-items:center;gap:8px"><div class="mt-h" id="mt-h">New Task</div><button id="mt-open-parent" style="display:none;padding:0 6px;height:18px;font-size:9px;border-radius:4px;border:1px solid var(--bd2);background:var(--bg3);color:var(--acc);cursor:pointer" title="Open parent task">↑ Parent</button></div>
   <!-- Project selector -->
   <div class="fg" style="margin-bottom:10px">
     <select class="fi" id="mt-proj" style="font-size:11px" onchange="mtProjChange()">
@@ -1687,19 +1687,20 @@ function visTasks(){
     }
     return true;
   });
-  const sb=S._sortBy||'chrono';
-  if(sb==='name') tasks=[...tasks].sort((a,b)=>a.name.localeCompare(b.name));
-  else if(sb==='tags') tasks=[...tasks].sort((a,b)=>((a.tags||[])[0]||'').localeCompare((b.tags||[])[0]||''));
-  else tasks=[...tasks].sort((a,b)=>{
-    const _eff=(t)=>{
-      const s=t.start;
-      if(s) return s;
-      // Use earliest child start if task has no start
-      const children=TASKS.filter(ch=>ch.parentId===t.id&&ch.start);
-      return children.length?Math.min(...children.map(ch=>ch.start)):99999;
-    };
-    return _eff(a)-_eff(b);
-  }); // chrono: sort by effective start (own or earliest child)
+  const sb=S._sortBy||'';
+  if(sb&&!S._sortLocked){
+    if(sb==='name') tasks=[...tasks].sort((a,b)=>a.name.localeCompare(b.name));
+    else if(sb==='tags') tasks=[...tasks].sort((a,b)=>((a.tags||[])[0]||'').localeCompare((b.tags||[])[0]||''));
+    else if(sb==='chrono') tasks=[...tasks].sort((a,b)=>{
+      const _eff=(t)=>{
+        const s=t.start;
+        if(s) return s;
+        const children=TASKS.filter(ch=>ch.parentId===t.id&&ch.start);
+        return children.length?Math.min(...children.map(ch=>ch.start)):99999;
+      };
+      return _eff(a)-_eff(b);
+    });
+  }
   return tasks;
 }
 
@@ -1718,7 +1719,12 @@ function buildGRows(tasks){
       rows.push({t,tid:TASKS.indexOf(t),depth,viewResId:null});
       if(!hasChildren(t.id)||_collapsedTasks.has(t.id))return;
       // All children are now in TASKS[] (flattenSubtasksToTasks guarantees this)
-      TASKS.filter(ch=>ch.parentId===t.id&&tasks.includes(ch)).forEach(ch=>_addTree(ch,depth+1));
+      // Children in TASKS[] + any still in legacy subtasks[]
+      const _children=[
+        ...TASKS.filter(ch=>ch.parentId===t.id),
+        ...(t.subtasks||[]).filter(st=>st.name?.trim()&&!TASKS.find(x=>x.id===st.id)).map(st=>({...st,parentId:t.id,projId:st.projId||t.projId,teamId:st.teamId||t.teamId,teamIds:st.teamIds||t.teamIds||[],tags:st.tags||[],timeLogs:st.timeLogs||[],coResIds:st.coResIds||[],resHours:st.resHours||{},timeMode:st.timeMode||'total',subtasks:[]}))
+      ];
+      _children.filter(ch=>tasks.includes(ch)||ch.projId===(tasks[0]?.projId)||true).forEach(ch=>_addTree(ch,depth+1));
     }
     _projIds.forEach(pid=>{
       const proj=PROJECTS.find(p=>p.id===pid);
@@ -1732,43 +1738,42 @@ function buildGRows(tasks){
       if(noProj.length){rows.push({isGH:true,label:'No project',color:'#7a8aaa',resId:null});noProj.forEach(t=>_addTree(t,0));}
     }
   } else if(S.viewBy==='resource'){
-    // Collect all resource IDs that appear in any task (primary or co-resource)
-    // Collect ALL resource IDs: task primary/co + subtask resources
-    const allTaskResIds=new Set(tasks.flatMap(t=>[
-      t.resId,
-      ...(t.coResIds||[]),
-      ...(t.subtasks||[]).map(st=>st.resId).filter(Boolean)
-    ]).filter(Boolean));
+    // Collect all resource IDs from tasks AND TASKS[] children
+    const allTaskResIds=new Set();
+    tasks.forEach(t=>{
+      if(t.resId) allTaskResIds.add(t.resId);
+      (t.coResIds||[]).forEach(id=>allTaskResIds.add(id));
+      (t.subtasks||[]).forEach(st=>{if(st.resId) allTaskResIds.add(st.resId);});
+    });
+    // Also collect from TASKS[] children (parentId model)
+    TASKS.filter(ch=>ch.parentId).forEach(ch=>{if(ch.resId) allTaskResIds.add(ch.resId);});
+
     const _vbReal=S.vbFilter.filter(x=>x!=='__none__');
-    const rIds=_vbReal.length && !S.vbFilter.includes('__none__') ? _vbReal : S.vbFilter.includes('__none__') ? [] : [...allTaskResIds];
+    const rIds=_vbReal.length&&!S.vbFilter.includes('__none__')?_vbReal:S.vbFilter.includes('__none__')?[]:[...allTaskResIds];
     rIds.forEach(rid=>{
-      // Tasks where this resource is primary OR co-resource
-      const rt=tasks.filter(t=>t.resId===rid||(t.coResIds||[]).includes(rid));
-      // Cross-resource subtasks: subtasks assigned to this resource whose parent has a different resource
+      // All tasks (any depth) assigned to this resource
+      const myTasks=tasks.filter(t=>t.resId===rid||(t.coResIds||[]).includes(rid));
+      // Legacy cross-resource subtasks not yet in TASKS[]
       const crossSubs=[];
-      if(_showSubtasks||S.viewBy!=='project'){
-        TASKS.forEach(t=>{
-          if(t.resId===rid||(t.coResIds||[]).includes(rid)) return; // handled below with rt
-          (t.subtasks||[]).filter(st=>st.name?.trim()&&st.resId===rid).forEach(st=>{
-            crossSubs.push({t,st});
-          });
+      TASKS.forEach(t=>{
+        if(myTasks.includes(t)) return;
+        (t.subtasks||[]).filter(st=>st.name?.trim()&&st.resId===rid&&!TASKS.find(x=>x.id===st.id)).forEach(st=>{
+          crossSubs.push({t,st});
         });
-      }
-      if(!rt.length && !crossSubs.length) return; // truly nothing for this resource
+      });
+      if(!myTasks.length&&!crossSubs.length) return;
       const r=getRes(rid);
       rows.push({isGH:true,label:r?r.name:'?',color:resTeamColor(rid),resId:rid});
-      rt.forEach(t=>{
+      myTasks.forEach(t=>{
         rows.push({t,tid:TASKS.indexOf(t),depth:0,viewResId:rid});
-        if(_showSubtasks||S.viewBy!=='project')(t.subtasks||[]).filter(st=>{
-          if(!st.name?.trim()) return false;
-          const stRes=st.resId||t.resId;
-          return stRes===rid;
-        }).forEach(st=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
+        // Legacy subtasks for this resource (not yet promoted to TASKS[])
+        (t.subtasks||[]).filter(st=>st.name?.trim()&&(st.resId||t.resId)===rid&&!TASKS.find(x=>x.id===st.id)).forEach(st=>{
+          rows.push({t,st,isSubtask:true,depth:1,viewResId:rid});
+        });
       });
       crossSubs.forEach(({t,st})=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
     });
-    // Exclude 0h tasks (grouping tasks) from Unassigned — they're structural, not work items
-    const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0)&&(t.hours??0)>0);
+        const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0)&&(t.hours??0)>0);
     if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});noRes.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
   } else {
     const _vbR2=S.vbFilter.filter(x=>x!=='__none__');
@@ -1787,7 +1792,7 @@ function buildGRows(tasks){
       rt.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
     });
     const noTeam=tasks.filter(t=>!t.teamId&&(!t.teamIds||!t.teamIds.length));
-    if(noTeam.length&&S.vbFilter.length===0){rows.push({isGH:true,label:'No team',color:'#7a8aaa',resId:null});noTeam.forEach(t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
+    if(false){/* 'No team' group removed - only show tasks with team */;}
   }
   return rows;
 }
@@ -1990,6 +1995,7 @@ function renderOverview(){
 
 function renderGantt(){
   document.getElementById('sb-tc').textContent=TASKS.length;
+  {const _sh=document.getElementById('gantt-sort-hdr');if(_sh)_sh.textContent=S._sortBy==='chrono'?'⬆ TASK':'TASK';}
   {const _vm={project:'vb-pr',team:'vb-tm',resource:'vb-rs'};document.querySelectorAll('#vb-pr,#vb-tm,#vb-rs').forEach(x=>x.classList.remove('on'));const _ve=document.getElementById(_vm[S.viewBy]);if(_ve)_ve.classList.add('on');}
   {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}  
   {const _sb=document.getElementById('vb-sel-btn');if(_sb)_sb.style.display=S.viewBy==='project'?'none':'';}
@@ -2086,7 +2092,7 @@ function renderGantt(){
     ${msp.map(ms=>`<th colspan="${ms.n}" class="th-m" style="width:${ms.n*COL_W}px">${MN[ms.m].toUpperCase()}</th>`).join('')}
   </tr>
   <tr>
-    <th class="stn" style="height:28px;left:0;z-index:12;padding:0"></th>
+    <th class="stn" style="height:28px;left:0;z-index:12;padding:0;cursor:pointer" onclick="S._sortBy=S._sortBy==='chrono'?'':'chrono';S._sortLocked=false;renderGantt();" title="Sort by date"><div id="gantt-sort-hdr" style="padding:0 8px;font-size:9px;font-weight:600;color:var(--fg3);display:flex;align-items:center;gap:3px">TASK</div></th>
     <th class="sto" style="height:28px;left:240px;z-index:12;padding:0"></th>
     <th class="sth" style="height:28px;left:276px;z-index:12;padding:0"></th>
     ${cols.map(c=>{
@@ -2198,9 +2204,11 @@ function renderGantt(){
         const pdlLine2=isPdlDay2?'<div class="pdl-line" style="z-index:9"></div>':'';
         const isDlDay=stDlIdx&&day===stDlIdx;
         const bdStyle='border-top:1px solid rgba(37,47,69,.2)';
-        if(day>=stStart&&day<=stEnd&&!cellNW){
-          // Has bar — greedy packing hours this day
-          const _stDayH=_subHoursOnDay(st,t,day);
+        // Use _sched if available (TASKS[] child), else greedy pack
+        const _stDayH2=st._sched?st._sched[day]:_subHoursOnDay(st,t,day);
+        const _stInRange=st._sched?(_stDayH2||0)>0.001:(day>=stStart&&day<=stEnd&&!cellNW);
+        if(_stInRange){
+          const _stDayH=_stDayH2||0;
           const frac=Math.min(1,_stDayH/stCap);
           const bh=Math.max(BAR_MIN,Math.round(BAR_MIN+frac*(BAR_MAX-BAR_MIN)));
           const isOvDay=stDlIdx&&day>stDlIdx;
@@ -2303,9 +2311,10 @@ function renderGantt(){
     }
 
     H+=`<tr data-tid="${t.id}" style="${rowStyle}">
-      <td class="stn" style="padding:2px 6px;width:240px;max-width:240px">
+      <td class="stn" style="padding:2px 6px;width:240px;max-width:240px;height:36px;overflow:hidden;vertical-align:top">
         <div style="display:flex;align-items:center;gap:4px">
           ${row.depth?`<span style="display:inline-block;width:${row.depth*10}px;flex-shrink:0"></span>`:''}
+          
           ${S.viewBy==='project'&&hasChildren(t.id)?`<span onclick="toggleCollapse('${t.id}',event)" style="cursor:pointer;font-size:9px;color:var(--fg3);flex-shrink:0;width:10px;text-align:center;user-select:none">${_collapsedTasks.has(t.id)?'▶':'▼'}</span>`:`<span style="display:inline-block;width:10px;flex-shrink:0"></span>`}
           <button onclick="event.stopPropagation();cycleStatus('${t.id}')" oncontextmenu="event.preventDefault();event.stopPropagation();showStatusMenu(event,'${t.id}')"
             title="${t.status==='doing'||t.status==='paused'?'Use timer to control':'Click → Done · Right-click for more'}"
@@ -2315,7 +2324,13 @@ function renderGantt(){
           <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;font-size:11px;color:${isDone?'var(--fg2)':'var(--fg0)'};flex:1;min-width:0" onclick="openEditTask('${t.id}')" title="${t.name}">
             ${inc?'<span style="color:var(--warn);font-size:9px;margin-right:2px" title="Incomplete">⚠</span>':''}
             ${isHold?`<span style="color:var(--warn);font-size:9px;margin-right:2px" title="${holdTip}">⏸</span>`:''}
-            ${t.name}${(()=>{ const st=t.subtasks||[]; if(!st.length) return ''; const dn=st.filter(s=>s.done).length; return `<span style="font-size:8px;color:${dn===st.length?'var(--ok)':'var(--fg3)'};margin-left:5px;font-family:var(--mono)">☑${dn}/${st.length}</span>`; })()}
+            ${t.name}${(()=>{
+              if(S.viewBy==='project') return '';
+              const _lines=[];
+              if(t.projId){const _pr=PROJECTS.find(p=>p.id===t.projId);if(_pr)_lines.push('<span style="font-size:8px;padding:1px 4px;border-radius:3px;background:'+(_pr.color||'var(--acc)')+'22;color:'+(_pr.color||'var(--acc)')+';display:inline-block;margin-top:1px">'+_pr.name+'</span>');}
+              if(t.parentId){const _p=[];let _c=TASKS.find(x=>x.id===t.parentId);while(_c&&_p.length<5){_p.unshift(_c.name);_c=_c.parentId?TASKS.find(x=>x.id===_c.parentId):null;}_lines.push('<span style="font-size:8px;color:var(--fg3);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_p.join(' › ')+'</span>');}
+              return _lines.length?'<div style="margin-top:1px;overflow:hidden">'+_lines.join('')+'</div>':'';
+            })()}${(()=>{ const st=t.subtasks||[]; if(!st.length) return ''; const dn=st.filter(s=>s.done).length; return `<span style="font-size:8px;color:${dn===st.length?'var(--ok)':'var(--fg3)'};margin-left:5px;font-family:var(--mono)">☑${dn}/${st.length}</span>`; })()}
           </div>
         </div>
         <div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:1px;padding-left:18px">
@@ -2331,8 +2346,18 @@ function renderGantt(){
     const cap=getRes(t.resId)?.dailyCap||HPD;
     const sched=t._sched||{};
     const schedDays=Object.keys(sched).map(Number).sort((a,b)=>a-b);
-    const firstSchedDay=schedDays[0]||(t.start||0);
-    const lastSchedDay=schedDays[schedDays.length-1]||tEnd(t);
+    // For 0h grouping tasks: span covers all descendants
+    let firstSchedDay=schedDays[0]||(t.start||GANTT_TODAY);
+    let lastSchedDay=schedDays[schedDays.length-1]||(t.start?(t.start+(t.dur||1)-1):GANTT_TODAY);
+    if((tHours(t)??0)===0){
+      const _desc=_getDescAll(t.id);
+      if(_desc.length){
+        const _starts=_desc.map(ch=>ch.start||GANTT_TODAY).filter(Boolean);
+        const _ends=_desc.map(ch=>tEnd(ch)).filter(Boolean);
+        if(_starts.length) firstSchedDay=Math.min(..._starts);
+        if(_ends.length) lastSchedDay=Math.max(..._ends);
+      }
+    }
     const progW=t.prog||0;
     const barCls=['gb',isOv?'overdue-bar':'',t.status==='hold'?'hold-bar':'',inc?'incomplete-bar':''].filter(Boolean).join(' ');
     let firstBarCi=-1,lastBarCi=-1;
@@ -2340,7 +2365,9 @@ function renderGantt(){
 
     // Subtask outline: span from earliest subtask start to latest subtask end
     // Include both legacy subtasks[] and new TASKS[] children (parentId model)
-    const _stArr=[...(t.subtasks||[]).filter(s=>s.name?.trim()),..._getDescAll(t.id)];
+    const _stDescAll=_getDescAll(t.id);
+    const _stLegacy=(t.subtasks||[]).filter(s=>s.name?.trim()&&!TASKS.find(x=>x.id===s.id));
+    const _stArr=[..._stLegacy,..._stDescAll];
     let _stOutlineFirst=-1,_stOutlineLast=-1;
     if(_stArr.length&&_showSubtasks){
       let stMin=Infinity, stMax=-Infinity;
@@ -2402,6 +2429,30 @@ function renderGantt(){
       const _hasSubsHere=_activeSubs4Day.length>0;
 
       const _dayActive=_isDayActiveForTask(t,day);
+      const _miniSt=(S.viewBy==='project'&&_collapsedTasks.has(t.id)&&hasChildren(t.id))?(()=>{
+          const _aS=_stArr.filter(s=>{
+            if(isNW(day,null,s.resId||t.resId)) return false;
+            if(s._sched) return (s._sched[day]||0)>0.001;
+            const _ss=s.start||t.start||GANTT_TODAY;
+            const _scm=getRes(s.resId||t.resId)?.dailyCap||HPD;const _dd=Math.max(s.dur||1,Math.ceil((s.hours||1)/_scm));
+            return day>=_ss&&day<_ss+_dd;
+          });
+          if(!_aS.length) return '';
+          // All children scale together to fit BAR_MAX — same color as parent (barColor)
+          const _eFracs=_aS.map(s=>{const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));return Math.min(1,(s.hours||1)/(_sd*_sc));});
+          const _eRaws=_eFracs.map(f=>Math.max(BAR_MIN,Math.round(BAR_MIN+f*(BAR_MAX-BAR_MIN))));
+          const _eTotalRaw=_eRaws.reduce((a,h)=>a+h,0);
+          const _eScale=_eTotalRaw>BAR_MAX?BAR_MAX/_eTotalRaw:1;
+          return _aS.map((s,_si)=>{
+            const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;
+            const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));
+            const _sf=Math.min(1,(s.hours||1)/(_sd*_sc));
+            const _sh=Math.max(2,Math.round(_eRaws[_si]*_eScale));
+            const _dl=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
+            const _ov=_dl&&day>_dl;
+            return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+(()=>{const _ste=s.teamId||TASKS.find(p=>p.id===s.parentId)?.teamId||t.teamId;return _ste&&getTeam(_ste)?.color||barColor;})()+'88;'+(_ov?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
+          }).join('');
+        })():'';
       if(dayHours>0.001 && _dayActive){
         const frac=Math.min(1,dayHours/cap);
         const _bhRaw=Math.max(BAR_MIN,Math.round(BAR_MIN+frac*(BAR_MAX-BAR_MIN)));
@@ -2443,7 +2494,7 @@ function renderGantt(){
       } else if(day>=firstSchedDay&&day<=lastSchedDay){
         // Outline span (0h grouping task or outside bar range)
         const _isGrouping=(tHours(t)??0)===0;
-        H+=`<td class="${_isGrouping?'':'nwc'}${isPdl?' pdl-col':''}" style="position:relative;${_isGrouping?'border-top:2px solid '+barColor+'66;':''}">` + pdlOverlay + markers + `</td>`;
+        H+=`<td class="${_isGrouping?'':'nwc'}${isPdl?' pdl-col':''}" style="position:relative;${_isGrouping?'border-top:2px solid '+barColor+'66;':''}">` + pdlOverlay + markers + _miniSt + `</td>`;
       } else if(!_dayActive && day>=t.start && day<=(t.start+(t.dur||1)-1)){
         // Inactive weekday for daily task — dim cell with subtle indicator
         H+=`<td class="${tcls}" style="position:relative;background:rgba(255,255,255,.02)" title="Inactive weekday">
@@ -2451,30 +2502,6 @@ function renderGantt(){
         ${markers}</td>`;
       } else {
         const holdStyle=isHold?'hold-stripe':'';
-        const _miniSt=(S.viewBy==='project'&&_collapsedTasks.has(t.id)&&hasChildren(t.id))?(()=>{
-          const _aS=_stArr.filter(s=>{
-            if(isNW(day,null,s.resId||t.resId)) return false;
-            if(s._sched) return (s._sched[day]||0)>0.001;
-            const _ss=s.start||t.start||GANTT_TODAY;
-            const _scm=getRes(s.resId||t.resId)?.dailyCap||HPD;const _dd=Math.max(s.dur||1,Math.ceil((s.hours||1)/_scm));
-            return day>=_ss&&day<_ss+_dd;
-          });
-          if(!_aS.length) return '';
-          // All children scale together to fit BAR_MAX — same color as parent (barColor)
-          const _eFracs=_aS.map(s=>{const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));return Math.min(1,(s.hours||1)/(_sd*_sc));});
-          const _eRaws=_eFracs.map(f=>Math.max(BAR_MIN,Math.round(BAR_MIN+f*(BAR_MAX-BAR_MIN))));
-          const _eTotalRaw=_eRaws.reduce((a,h)=>a+h,0);
-          const _eScale=_eTotalRaw>BAR_MAX?BAR_MAX/_eTotalRaw:1;
-          return _aS.map((s,_si)=>{
-            const _sc=getRes(s.resId||t.resId)?.dailyCap||HPD;
-            const _sd=s.dur||Math.max(1,Math.ceil((s.hours||1)/_sc));
-            const _sf=Math.min(1,(s.hours||1)/(_sd*_sc));
-            const _sh=Math.max(2,Math.round(_eRaws[_si]*_eScale));
-            const _dl=s.deadline?dateToIdx(s.deadline):(t.deadline?dateToIdx(t.deadline):null);
-            const _ov=_dl&&day>_dl;
-            return '<div style="height:'+_sh+'px;width:100%;border-radius:3px;margin-top:1px;background:'+(()=>{const _ste=s.teamId||TASKS.find(p=>p.id===s.parentId)?.teamId||t.teamId;return _ste&&getTeam(_ste)?.color||barColor;})()+'88;'+(_ov?'outline:1px solid rgba(220,38,38,.85);':'')+';pointer-events:none"></div>';
-          }).join('');
-        })():'';
         H+=`<td class="${tcls} ${holdStyle}" style="cursor:${canEdit?'pointer':'default'};position:relative;overflow:visible;vertical-align:top;padding:1px 0 0"
           onmouseover="if(_mv)highlightDrop(this)" onmouseout="clearHL(this)"
           oncontextmenu="${canEdit?`dayCellCtx(event,${day},'${t.id}')`:''}">
@@ -2650,7 +2677,19 @@ function computeAllSchedules(){
   TASKS.forEach(t=>{
     if(t.status==='doing'||t.status==='paused') if(!t.start) t.start=GANTT_TODAY; // anchor active tasks
     if(!t.resId||!t.start||t.status==='done'||t.status==='cancelled'||t.status==='ready') return;
-    if((tHours(t)??0)===0) return; // 0h grouping task — no bars needed
+    if((tHours(t)??0)===0){
+      // 0h grouping task: update start/dur to span all descendants
+      const _desc=_getDescAll(t.id);
+      if(_desc.length){
+        const _starts=_desc.map(ch=>ch.start).filter(Boolean);
+        const _ends=_desc.map(ch=>tEnd(ch)).filter(Boolean);
+        if(_starts.length){
+          t.start=Math.min(..._starts);
+          t.dur=Math.max(1,(Math.max(..._ends)-t.start+1));
+        }
+      }
+      t._sched={}; return;
+    }
     if(!byRes[t.resId]) byRes[t.resId]=[];
     byRes[t.resId].push(t);
   });
@@ -2894,7 +2933,7 @@ function finishMove(upX){
 
   // ── SUBTASK MOVE ─────────────────────────────────────────────
   if(_stId){
-    const st=(t.subtasks||[]).find(s=>s.id===_stId);
+    const st=(t.subtasks||[]).find(s=>s.id===_stId)||TASKS.find(s=>s.id===_stId);
     if(!st) return;
     const oldSt=st.start;
     st.start=newStart;
@@ -2903,6 +2942,7 @@ function finishMove(upX){
     st.dur=Math.max(1,Math.ceil(stH/stCap));
     addLog({type:'move',task:`${t.name} › ${st.name}`,from:oldSt?sd(oldSt):'—',to:sd(newStart)});
     notify(`"${st.name}" → ${sd(newStart)}`,'success');
+    S._sortBy=''; S._sortLocked=false;
     persistState(['tasks'],{tasks:[t.id]});
     renderGantt();
     return;
@@ -2950,6 +2990,7 @@ function finishMove(upX){
   // Any task that depends on the moved task must start after it ends
   cascadeDependents(taskId, new Set([taskId]));
 
+  S._sortLocked=true;
   persistState();
   renderGantt();
 }
@@ -3358,6 +3399,7 @@ function loadDepFields(t){
 function openAddTask(){
   S.editId=null;
   document.getElementById('mt-h').textContent='New Task';
+  {const _pb=document.getElementById('mt-open-parent');if(_pb)_pb.style.display='none';}
   // Clear milestone display for new task
   const _mtMs=document.getElementById('mt-ms-list'); if(_mtMs) _mtMs.innerHTML='<span style="font-size:10px;color:var(--fg3)">Save task first to associate milestones</span>';
   _loadSubtasksIntoModal([]);
@@ -3396,6 +3438,7 @@ function openEditTask(id){
   if(!t) return;
   S.editId=id;
   document.getElementById('mt-h').textContent='Edit Task';
+  {const _pb=document.getElementById('mt-open-parent');if(_pb){const _pt=TASKS.find(x=>x.id===id);if(_pt?.parentId){_pb.style.display='';_pb.onclick=()=>{CM('m-task');setTimeout(()=>openEditTask(_pt.parentId),50);};}else _pb.style.display='none';}}
   const _ps2=document.getElementById('mt-proj');
   if(_ps2){ _ps2.innerHTML='<option value="">— project —</option>'+PROJECTS.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); _ps2.value=t.projId||S._activeProjId||''; }
   const _isCont=!t.timeMode||t.timeMode==='total';
@@ -4202,8 +4245,9 @@ function _scheduleResource(resId, tasks){
         if(h>0) items.push({isSub:false, t, hours:h, sortKey:(t.start||GANTT_TODAY)*10000+ti});
       }
     }
-    // Subtasks — regardless of parent task's resId
+    // Legacy subtasks — skip if already promoted to TASKS[] (would be double-counted)
     (t.subtasks||[]).forEach((st,si)=>{
+      if(TASKS.find(x=>x.id===st.id)) return; // already in TASKS[] — skip
       const stRes=st.resId||t.resId;
       if(stRes!==resId) return;
       if(st.status==='done'||st.status==='cancelled') return;
@@ -4218,7 +4262,9 @@ function _scheduleResource(resId, tasks){
 
   items.forEach(item=>{
     // Apply effective dep constraint (inherited from parent chain)
-    const _eMinStart=getEffectiveMinStart(item.isSub?item.st:item.t)||GANTT_TODAY;
+    const _ownT=item.isSub?item.st:item.t;
+    const _ownDep=_ownT.depType?getEffectiveMinStart(_ownT):null;
+    const _eMinStart=_ownDep||GANTT_TODAY;
     let rem=item.hours, day=Math.max(GANTT_TODAY,_eMinStart), sDay=null, eDay=null, iter=0;
     const taskId=item.isSub?null:item.t.id;
     while(isNW(day,taskId,resId)&&iter++<30) day++;
@@ -4984,12 +5030,23 @@ const STATUS_CYCLE=['todo','done','hold','cancelled']; // doing/paused only via 
 window.cycleStatus=(taskId)=>{
   const t=TASKS.find(x=>x.id===taskId);
   if(!t) return;
-  // Single click always marks done
   const hasMsLink=taskHasMilestone(taskId);
-  const next=hasMsLink?'ready':'done';
-  t.status=next; t.prog=100;
-  addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[next]||next});
-  notify(`"${t.name}" → Done ✓`,'success');
+  // If has milestone link: ready→done only from milestone date onwards
+  if(hasMsLink && t.status==='ready'){
+    const ms=getEffectiveMilestones(taskId)[0];
+    const msDay=ms?.dayIdx||0;
+    if(GANTT_TODAY>=msDay){ // milestone date reached
+      t.status='done'; t.prog=100;
+    } else {
+      notify(`Milestone "${ms?.name}" not yet reached`,'info'); return;
+    }
+  } else if(hasMsLink && t.status!=='done'){
+    t.status='ready'; t.prog=100;
+  } else {
+    t.status='done'; t.prog=100;
+  }
+  addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:'done'});
+  notify(`"${t.name}" → ${t.status==='ready'?'Ready for MS':'Done'} ✓`,'success');
   persistState(['tasks'],{tasks:[taskId]}); renderGantt(); renderDash();
 };
 window.showStatusMenu=(e,taskId)=>{
@@ -5364,6 +5421,7 @@ function startSSE(){
 
       // Run migration on received data
       migrateTasks();
+      flattenSubtasksToTasks(); // promote legacy subtasks to TASKS[]
       const p=S.page;
       if(p==='gantt')         {buildSFChips();buildTagPanel();clearTimeout(window._sseRG);window._sseRG=setTimeout(renderGantt,150);}
       else if(p==='dashboard') renderDash();
@@ -7113,6 +7171,7 @@ window._cycleSortGantt=()=>{
   const order=['chrono','name','tags'];
   const cur=S._sortBy||'chrono';
   S._sortBy=order[(order.indexOf(cur)+1)%order.length];
+  S._sortLocked=false;
   renderGantt();
 };
 window._sortMenuGantt=(e)=>{
@@ -7122,7 +7181,7 @@ window._sortMenuGantt=(e)=>{
   menu.style.cssText='position:fixed;z-index:500;background:var(--bg2);border:1px solid var(--bd2);border-radius:8px;padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.5);min-width:140px';
   menu.style.left=e.clientX+'px'; menu.style.top=e.clientY+'px';
   const opts=[['chrono','📅 Chronological'],['name','🔤 Name (A–Z)'],['tags','# Tags (A–Z)']];
-  menu.innerHTML=opts.map(([v,l])=>`<div onclick="S._sortBy='${v}';renderGantt();this.closest('#g-sort-menu').remove()" style="padding:7px 12px;font-size:11px;cursor:pointer;border-radius:5px;background:${(S._sortBy||'chrono')===v?'var(--bg3)':'none'};color:var(--fg0)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${(S._sortBy||'chrono')===v?'var(--bg3)':'none'}'">
+  menu.innerHTML=opts.map(([v,l])=>`<div onclick="S._sortBy='${v}';S._sortLocked=false;renderGantt();this.closest('#g-sort-menu').remove()" style="padding:7px 12px;font-size:11px;cursor:pointer;border-radius:5px;background:${(S._sortBy||'chrono')===v?'var(--bg3)':'none'};color:var(--fg0)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${(S._sortBy||'chrono')===v?'var(--bg3)':'none'}'">
     ${l}${(S._sortBy||'chrono')===v?' ✓':''}
   </div>`).join('');
   document.body.appendChild(menu);
@@ -7458,6 +7517,8 @@ function _renderSubtaskList(){
           onchange="window._setSubDl(${i},this.value)"
           style="font-size:9px;padding:2px 4px;border-radius:4px;border:1px solid var(--bd);background:var(--bg2);color:var(--fg2);width:108px">
       </div>
+      <!-- Open if it's a TASKS[] child -->
+      ${TASKS.find(x=>x.id===st.id)?`<button onclick="event.stopPropagation();CM('m-task');setTimeout(()=>openEditTask('${st.id}'),50)" style="background:none;border:none;cursor:pointer;color:var(--acc);font-size:11px;padding:0 2px" title="Open full edit">↗</button>`:''}
       <!-- Delete -->
       <button onclick="window._delSubtask(${i})"
         style="background:none;border:none;cursor:pointer;color:var(--fg3);font-size:13px;padding:0;line-height:1" title="Remove">✕</button>
