@@ -522,7 +522,7 @@ tr.drag-preview-moved td{background:rgba(79,156,249,.13)!important;outline:1px d
     <!-- PROJECTS -->
     <div id="page-projects" class="page">
       <div class="flex ic jb mb16"><div><div style="font-size:18px;font-weight:600">Projects</div><div style="font-size:11px;color:var(--fg2)">Manage your projects</div></div><button class="btn btn-p btn-sm" onclick="openAddProject()">+ Project</button></div>
-      <div class="card"><div style="overflow-x:auto"><table class="dt"><thead><tr><th style="min-width:160px">Name</th><th style="min-width:120px">Order</th><th style="min-width:180px">Description</th><th style="min-width:80px">Color</th><th style="min-width:100px">Deadline</th><th style="min-width:70px">Status</th><th style="min-width:50px">Tasks</th><th style="min-width:45px"></th></tr></thead><tbody id="proj-b"></tbody></table></div></div>
+      <div class="card"><div style="overflow-x:auto"><table class="dt"><thead><tr><th style="min-width:160px">Name</th><th style="min-width:180px">Description</th><th style="min-width:100px">Deadline</th><th style="min-width:70px">Status</th><th style="min-width:50px">Tasks</th><th style="min-width:120px">Order</th><th style="min-width:45px"></th></tr></thead><tbody id="proj-b"></tbody></table></div></div>
     </div>
 
     <!-- REPORT -->
@@ -1286,7 +1286,7 @@ const S = {
   tm:'total', // time mode for current modal
 };
 
-const SLABELS = {todo:'To Do',doing:'In Progress',paused:'Paused',ready:'Ready for MS',done:'Done',hold:'On Hold',cancelled:'Cancelled'};
+const SLABELS = {todo:'To Do',doing:'In Progress',paused:'Paused',ready:'Ready',done:'Done',hold:'On Hold',cancelled:'Cancelled'};
 const SCOLS   = {todo:'var(--fg3)',doing:'var(--acc)',paused:'var(--acc)',ready:'#00c9a0',done:'var(--ok)',hold:'var(--warn)',cancelled:'var(--danger)'};
 
 // Working visual segments (auto-split on non-working days)
@@ -3181,7 +3181,7 @@ window.ctxStat=(s)=>{
   if(s==='doing'){ tpStart(S.ctxId); return; } // doing = timer only
   if(s==='done'&&taskHasMilestone(t.id)){
     s='ready';
-    notify(`"${t.name}" → Ready for Milestone`,'success');
+    notify(`"${t.name}" → Ready`,'success');
   }
   t.status=s;
   const _prevStatus=t.status; addLog({type:'status',task:t.name,from:SLABELS[_prevStatus]||_prevStatus,to:SLABELS[s]||s});
@@ -3983,15 +3983,12 @@ window.selectProjectAndGoGantt=(projId)=>{
 
 function renderProjects(){
   document.getElementById('proj-b').innerHTML=PROJECTS.map((p,i)=>`<tr>
-    <td style="display:flex;align-items:center;gap:7px">
-      <span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span>
-      <span style="font-weight:500;font-size:11px;color:var(--fg0);cursor:pointer" onclick="selectProjectAndGoGantt('${p.id}')" title="Open in Gantt">${p.name}</span>
-    </td>
+    <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="font-weight:500;font-size:11px;color:var(--fg0);cursor:pointer" onclick="selectProjectAndGoGantt('${p.id}')" title="Open in Gantt">${p.name}</span></span></td>
     <td style="font-size:11px;color:var(--fg2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.desc||'—'}</td>
-    <td><input type="color" value="${p.color}" onchange="PROJECTS[${i}].color=this.value;renderProjects()" style="width:34px;height:28px;border:none;background:none;cursor:pointer"></td>
     <td style="font-size:10px;color:var(--fg2)">${p.deadline||'—'}</td>
     <td><span class="badge" style="background:${PROJ_STAT_COLS[p.status]}22;color:${PROJ_STAT_COLS[p.status]}">${PROJ_STAT_LABELS[p.status]||p.status}</span></td>
     <td class="mono txs">${TASKS.filter(t=>(t.tags||[]).some(tg=>(p.tags||[]).includes(tg))).length}</td>
+    <td style="font-size:11px;color:var(--fg2)">${p.orderId||'—'}</td>
     <td style="display:flex;gap:4px">
       <button class="btn btn-xs" onclick="openEditProject('${p.id}')">✎</button>
       <button class="btn btn-xs btn-d" onclick="delProject('${p.id}')">✕</button>
@@ -5056,7 +5053,7 @@ window.cycleStatus=(taskId)=>{
     t.status='done'; t.prog=100;
   }
   addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:'done'});
-  notify(`"${t.name}" → ${t.status==='ready'?'Ready for MS':'Done'} ✓`,'success');
+  notify(`"${t.name}" → ${t.status==='ready'?'Ready':'Done'} ✓`,'success');
   persistState(['tasks'],{tasks:[taskId]}); renderGantt(); renderDash();
 };
 window.showStatusMenu=(e,taskId)=>{
@@ -5089,7 +5086,7 @@ window.setTaskStatus=(taskId,status)=>{
   // If task has a milestone, 'done' becomes 'ready'
   if(status==='done'&&taskHasMilestone(taskId)){
     status='ready';
-    notify(`"${t.name}" → Ready for Milestone (will auto-complete after milestone date)`,'success');
+    notify(`"${t.name}" → Ready (will auto-complete after milestone date)`,'success');
   }
   t.status=status;
   addLog({type:'status',task:t.name,from:SLABELS[t.status]||t.status,to:SLABELS[status]||status});
@@ -5636,7 +5633,7 @@ window.tpDone=(taskId)=>{
   }
   const _sessH=_commitSession?0:0; const _loggedH=_totalLoggedH(t);
   t.status=taskHasMilestone(taskId)?'ready':'done'; t.prog=100;
-  addLog({type:'status',task:t.name,from:'',to:`${taskHasMilestone(taskId)?'◆ Ready for Milestone':'✓ Done'} — total logged: ${_fmtHours(_loggedH)}`});
+  addLog({type:'status',task:t.name,from:'',to:`${taskHasMilestone(taskId)?'◆ Ready':'✓ Done'} — total logged: ${_fmtHours(_loggedH)}`});
   persistState(['tasks'],{tasks:[taskId]}); _reRenderCurrent();
   notify(`"${t.name}" → Done ✓`,'success');
   renderTimerPanel();
@@ -6060,7 +6057,7 @@ function renderHowTo(){
 </div>
 <div class="ht-body">
   <div class="ht-row"><span class="ht-key">⚡ Auto</span><span>Packs all tasks from today, filling each resource's daily capacity in start-date order. Also schedules subtasks interleaved with parent tasks.</span></div>
-  <div class="ht-row"><span class="ht-key">◆ Milestone</span><span>Link tasks to a delivery date. Tasks set to <b>Ready for Milestone</b> auto-complete to <b>Done</b> after the milestone date passes.</span></div>
+  <div class="ht-row"><span class="ht-key">◆ Milestone</span><span>Link tasks to a delivery date. Tasks set to <b>Ready</b> auto-complete to <b>Done</b> after the milestone date passes.</span></div>
   <div class="ht-demo">
     ${MILESTONES.slice(0,3).map(ms=>{
       const done=(ms.taskIds||[]).filter(id=>TASKS.find(t=>t.id===id&&(t.status==='done'||t.status==='ready'))).length;
@@ -7245,7 +7242,7 @@ function _checkMilestoneAutoComplete(){
       if(t&&t.status==='ready'){
         t.status='done';
         _changedIds.push(tid);
-        addLog({type:'status',task:t.name,from:'Ready for MS',to:'Done (milestone passed)'});
+        addLog({type:'status',task:t.name,from:'Ready',to:'Done (milestone passed)'});
         changed=true;
       }
     });
