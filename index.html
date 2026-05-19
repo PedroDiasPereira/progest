@@ -1776,24 +1776,23 @@ function buildGRows(tasks){
       addRowFn(t);
     });
   }
+  // Shared tree builder — used by all view modes
+  function _addTree(t,depth,viewResId){
+    rows.push({t,tid:TASKS.indexOf(t),depth,viewResId:viewResId||null});
+    if(!hasChildren(t.id)||_collapsedTasks.has(t.id))return;
+    let _children=[
+      ...TASKS.filter(ch=>ch.parentId===t.id),
+      ...(t.subtasks||[]).filter(st=>st.name?.trim()&&!TASKS.find(x=>x.id===st.id)).map(st=>({...st,parentId:t.id,projId:st.projId||t.projId,teamId:st.teamId||t.teamId,teamIds:st.teamIds||t.teamIds||[],tags:st.tags||[],timeLogs:st.timeLogs||[],coResIds:st.coResIds||[],resHours:st.resHours||{},timeMode:st.timeMode||'total',subtasks:[]}))
+    ];
+    const _sb=S._sortBy||'';
+    if(_sb==='name') _children=[..._children].sort((a,b)=>a.name.localeCompare(b.name));
+    else if(_sb==='chrono') _children=[..._children].sort((a,b)=>{const _ea=a.start||(()=>{const d=_getDescAll(a.id);const s=d.map(x=>x.start).filter(Boolean);return s.length?Math.min(...s):99999;})();const _eb=b.start||(()=>{const d=_getDescAll(b.id);const s=d.map(x=>x.start).filter(Boolean);return s.length?Math.min(...s):99999;})();return _ea-_eb;});
+    _children.forEach(ch=>_addTree(ch,depth+1,viewResId));
+  }
+
   if(S.viewBy==='project'){
     const _apId=S._activeProjId||null;
     const _projIds=_apId?[_apId]:[...new Set(tasks.map(t=>t.projId).filter(Boolean))];
-    function _addTree(t,depth){
-      rows.push({t,tid:TASKS.indexOf(t),depth,viewResId:null});
-      if(!hasChildren(t.id)||_collapsedTasks.has(t.id))return;
-      // All children are now in TASKS[] (flattenSubtasksToTasks guarantees this)
-      // Children in TASKS[] + any still in legacy subtasks[]
-      let _children=[
-        ...TASKS.filter(ch=>ch.parentId===t.id),
-        ...(t.subtasks||[]).filter(st=>st.name?.trim()&&!TASKS.find(x=>x.id===st.id)).map(st=>({...st,parentId:t.id,projId:st.projId||t.projId,teamId:st.teamId||t.teamId,teamIds:st.teamIds||t.teamIds||[],tags:st.tags||[],timeLogs:st.timeLogs||[],coResIds:st.coResIds||[],resHours:st.resHours||{},timeMode:st.timeMode||'total',subtasks:[]}))
-      ];
-      // Apply same sort as parent list
-      const _sb=S._sortBy||'';
-      if(_sb==='name') _children=[..._children].sort((a,b)=>a.name.localeCompare(b.name));
-      else if(_sb==='chrono') _children=[..._children].sort((a,b)=>{const _ea=a.start||(()=>{const d=_getDescAll(a.id);const s=d.map(x=>x.start).filter(Boolean);return s.length?Math.min(...s):99999;})();const _eb=b.start||(()=>{const d=_getDescAll(b.id);const s=d.map(x=>x.start).filter(Boolean);return s.length?Math.min(...s):99999;})();return _ea-_eb;});
-      _children.forEach(ch=>_addTree(ch,depth+1));
-    }
     _projIds.forEach(pid=>{
       const proj=PROJECTS.find(p=>p.id===pid);
       const roots=tasks.filter(t=>t.projId===pid&&!t.parentId);
@@ -1832,17 +1831,12 @@ function buildGRows(tasks){
       if(!myTasks.length&&!crossSubs.length) return;
       const r=getRes(rid);
       rows.push({isGH:true,label:r?r.name:'?',color:resTeamColor(rid),resId:rid});
-      _pushWithGroupHeaders(myTasks, t=>{
-        rows.push({t,tid:TASKS.indexOf(t),depth:0,viewResId:rid});
-        // Legacy subtasks for this resource (not yet promoted to TASKS[])
-        (t.subtasks||[]).filter(st=>st.name?.trim()&&(st.resId||t.resId)===rid&&!TASKS.find(x=>x.id===st.id)).forEach(st=>{
-          rows.push({t,st,isSubtask:true,depth:1,viewResId:rid});
-        });
-      });
+      const myRoots=myTasks.filter(t=>!t.parentId);
+      _pushWithGroupHeaders(myRoots, t=>_addTree(t,0,rid));
       crossSubs.forEach(({t,st})=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
     });
-        const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length);
-    if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noRes, t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
+        const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&!t.parentId);
+    if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noRes, t=>_addTree(t,0));}
   } else {
     const _vbR2=S.vbFilter.filter(x=>x!=='__none__');
     const tIds=S.vbFilter.includes('__none__') ? [] : _vbR2.length ? _vbR2 : [...new Set(tasks.flatMap(t=>(t.teamIds&&t.teamIds.length)?t.teamIds:(t.teamId?[t.teamId]:[])).filter(Boolean))];
@@ -1857,10 +1851,11 @@ function buildGRows(tasks){
       });
       if(!rt.length) return;
       rows.push({isGH:true,label:tm?tm.name:'?',color:tm?tm.color:'#7a8aaa',resId:null});
-      _pushWithGroupHeaders(rt, t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
+      const rtRoots=rt.filter(t=>!t.parentId);
+      _pushWithGroupHeaders(rtRoots, t=>_addTree(t,0));
     });
-    const noTeam=tasks.filter(t=>!t.teamId&&(!t.teamIds||!t.teamIds.length));
-    if(noTeam.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noTeam,t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
+    const noTeam=tasks.filter(t=>!t.teamId&&(!t.teamIds||!t.teamIds.length)&&!t.parentId);
+    if(noTeam.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noTeam,t=>_addTree(t,0));}
   }
   return rows;
 }
@@ -2414,7 +2409,7 @@ function renderGantt(){
               if(t.projId){const _pr=PROJECTS.find(p=>p.id===t.projId);if(_pr)_lines.push('<span style="font-size:8px;padding:1px 4px;border-radius:3px;background:'+(_pr.color||'var(--acc)')+'22;color:'+(_pr.color||'var(--acc)')+';display:inline-block;margin-top:1px">'+_pr.name+'</span>');}
               if(t.parentId){const _p=[];let _c=TASKS.find(x=>x.id===t.parentId);while(_c&&_p.length<5){_p.unshift(_c.name);_c=_c.parentId?TASKS.find(x=>x.id===_c.parentId):null;}_lines.push('<span style="font-size:8px;color:var(--fg3);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_p.join(' › ')+'</span>');}
               return _lines.length?'<div style="margin-top:1px;overflow:hidden">'+_lines.join('')+'</div>':'';
-            })()}${(()=>{ const st=t.subtasks||[]; if(!st.length) return ''; const dn=st.filter(s=>s.done).length; return `<span style="font-size:8px;color:${dn===st.length?'var(--ok)':'var(--fg3)'};margin-left:5px;font-family:var(--mono)">☑${dn}/${st.length}</span>`; })()}
+            })()}${(()=>{ const _ch=TASKS.filter(x=>x.parentId===t.id); const _leg=(t.subtasks||[]).filter(s=>s.name?.trim()&&!_ch.find(c=>c.id===s.id)); const allSt=[..._ch,..._leg]; if(!allSt.length) return ''; const dn=allSt.filter(s=>s.status==='done'||s.done).length; return `<span style="font-size:8px;color:${dn===allSt.length?'var(--ok)':'var(--fg3)'};margin-left:5px;font-family:var(--mono)" title="Subtasks: ${dn} done / ${allSt.length} total">☑${dn}/${allSt.length}</span>`; })()}
           </div>
         </div>
         <div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:1px;padding-left:18px">
