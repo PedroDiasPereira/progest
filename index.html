@@ -3706,14 +3706,26 @@ window.saveTask=()=>{
     if((t.teamId||'')!==(data.teamId||'')) diffs.push(`team: ${_tn(t.teamId)} → ${_tn(data.teamId)}`);
     if(S._addChildParentId&&!S.editId){data.parentId=S._addChildParentId;S._addChildParentId=null;}else if(!S.editId)data.parentId=null;
     Object.assign(t,data);
+    // Remove subtasks from t.subtasks[] that have already been promoted to TASKS[]
+    // to prevent flattenSubtasksToTasks() from duplicating them on next SSE reload
+    if(t.subtasks&&t.subtasks.length){
+      t.subtasks=t.subtasks.filter(st=>!TASKS.find(x=>x.id===st.id&&x.parentId===t.id));
+    }
     persistState(['tasks'],{tasks:[t.id]}); // immediate targeted save
     addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
     notify('Task saved','success');
   } else {
     const newId='t'+Date.now();
     const res=getRes(data.resId);
-    TASKS.push({id:newId,timeLogs:[],subtasks:[],segments:null,...data});
-    persistState(['tasks'],{tasks:[newId]}); // save new task immediately
+    // Store subtasks in TASKS[] as children, not in subtasks[] to avoid duplication
+    const _newSubtasks=data.subtasks||[];
+    const newTask={id:newId,timeLogs:[],subtasks:[],segments:null,...data,subtasks:[]};
+    TASKS.push(newTask);
+    // Promote subtasks directly as TASKS[] children
+    _newSubtasks.filter(st=>st.name?.trim()).forEach(st=>{
+      if(!TASKS.find(x=>x.id===st.id)) TASKS.push({...st,parentId:newId,projId:st.projId||data.projId,teamId:st.teamId||data.teamId,teamIds:st.teamIds||data.teamIds||[],tags:st.tags||[],timeLogs:st.timeLogs||[],coResIds:st.coResIds||[],resHours:st.resHours||{},timeMode:st.timeMode||'total',subtasks:[],segments:null});
+    });
+    persistState(['tasks'],{tasks:[newId,..._newSubtasks.map(st=>st.id).filter(Boolean)]}); // save new task immediately
     addLog({type:'create',task:name,from:'',to:`created${data.projId?' in '+PROJECTS.find(p=>p.id===data.projId)?.name:''}${res?' for '+res.name:''}${data.hours?' · '+data.hours+'h':''}`});
     notify(`"${name}" created`,'success');
   }
