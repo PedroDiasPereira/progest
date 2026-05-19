@@ -1234,8 +1234,11 @@ function flattenSubtasksToTasks(){
         });
       }
     });
-    // Note: DON'T clear t.subtasks[] — Firebase will restore it on each SSE update
-    // The duplicate check above (by id) handles re-runs
+    // Clear promoted entries from t.subtasks[] to prevent re-promotion on next SSE
+    t.subtasks=(t.subtasks||[]).filter(st=>{
+      const promoted=toAdd.find(x=>x.id===st.id)||TASKS.find(x=>x.id===st.id&&x.parentId===t.id);
+      return !promoted;
+    });
   });
   toAdd.forEach(t=>TASKS.push(t));
 }
@@ -1838,7 +1841,7 @@ function buildGRows(tasks){
       });
       crossSubs.forEach(({t,st})=>rows.push({t,st,isSubtask:true,depth:1,viewResId:rid}));
     });
-        const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length&&(S.vbFilter.length===0)&&(t.hours??0)>0);
+        const noRes=tasks.filter(t=>!t.resId&&!(t.coResIds||[]).length);
     if(noRes.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noRes, t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
   } else {
     const _vbR2=S.vbFilter.filter(x=>x!=='__none__');
@@ -3575,7 +3578,11 @@ function openEditTask(id){
   }
   renderTeamResList();
   // Load both legacy subtasks[] and new TASKS[] children (parentId model)
-  const _allSubs=[...(t.subtasks||[]),...TASKS.filter(ch=>ch.parentId===t.id)];
+  // Merge subtasks[] and TASKS[] children, deduplicating by ID (TASKS[] children take priority)
+  const _childTasks=TASKS.filter(ch=>ch.parentId===t.id);
+  const _childIds=new Set(_childTasks.map(c=>c.id));
+  const _legacySubs=(t.subtasks||[]).filter(st=>st.name?.trim()&&!_childIds.has(st.id));
+  const _allSubs=[..._legacySubs,..._childTasks];
   _loadSubtasksIntoModal(_allSubs);
   _updateTotalWithSubs();
   _renderTaskMilestones(id);
