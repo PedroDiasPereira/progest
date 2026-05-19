@@ -1857,7 +1857,7 @@ function buildGRows(tasks){
       _pushWithGroupHeaders(rt, t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));
     });
     const noTeam=tasks.filter(t=>!t.teamId&&(!t.teamIds||!t.teamIds.length));
-    if(false){/* 'No team' group removed - only show tasks with team */;}
+    if(noTeam.length){rows.push({isGH:true,label:'Unassigned',color:'#7a8aaa',resId:null});_pushWithGroupHeaders(noTeam,t=>rows.push({t,tid:TASKS.indexOf(t),depth:0}));}
   }
   return rows;
 }
@@ -3248,7 +3248,17 @@ function showCtx(e,taskId){
 window.ctxEdit=()=>{CM_close();if(S.ctxId)openEditTask(S.ctxId);};
 window.ctxSplit=()=>{CM_close();if(S.ctxId)openSplit(S.ctxId);};
 window.ctxLog=()=>{CM_close();if(S.ctxId)openLogTime(S.ctxId);};
-window.ctxDel=()=>{CM_close();TASKS=TASKS.filter(t=>t.id!==S.ctxId);notify('Deleted','warn');renderGantt();renderDash();};
+window.ctxDel=()=>{
+  CM_close();
+  const _ctxDelId=S.ctxId;
+  const _collectDesc2=(pid)=>{ const ch=TASKS.filter(x=>x.parentId===pid); return ch.flatMap(c=>[c.id,..._collectDesc2(c.id)]); };
+  const _allCtxDel=[_ctxDelId,..._collectDesc2(_ctxDelId)];
+  TASKS=TASKS.filter(t=>!_allCtxDel.includes(t.id));
+  const _dp2={}; _allCtxDel.forEach(id=>{ _dp2[id]=null; });
+  fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_dp2)}).catch(()=>{});
+  notify('Deleted','warn');
+  renderGantt();renderDash();
+};
 window.ctxStat=(s)=>{
   CM_close();
   const t=TASKS.find(x=>x.id===S.ctxId);
@@ -3707,10 +3717,17 @@ window.saveTask=()=>{
     if(S._addChildParentId&&!S.editId){data.parentId=S._addChildParentId;S._addChildParentId=null;}else if(!S.editId)data.parentId=null;
     Object.assign(t,data);
     // Remove subtasks from t.subtasks[] that have already been promoted to TASKS[]
-    // to prevent flattenSubtasksToTasks() from duplicating them on next SSE reload
     if(t.subtasks&&t.subtasks.length){
       t.subtasks=t.subtasks.filter(st=>!TASKS.find(x=>x.id===st.id&&x.parentId===t.id));
     }
+    // Delete from TASKS[] any promoted children no longer in the saved subtask list
+    const _keptIds=new Set((data.subtasks||[]).map(st=>st.id).filter(Boolean));
+    const _obsolete=TASKS.filter(x=>x.parentId===t.id&&!_keptIds.has(x.id));
+    _obsolete.forEach(x=>{
+      TASKS.splice(TASKS.indexOf(x),1);
+      const _dp={}; _dp[x.id]=null;
+      fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_dp)}).catch(()=>{});
+    });
     persistState(['tasks'],{tasks:[t.id]}); // immediate targeted save
     addLog({type:'edit',task:name,from:'',to:diffs.length?diffs.join(' · '):'saved'});
     notify('Task saved','success');
@@ -3739,13 +3756,21 @@ window.delEditTask=()=>{
   const _dt=TASKS.find(x=>x.id===S.editId);
   const _delId=S.editId;
   addLog({type:'delete',task:_dt?.name||S.editId,from:'',to:`task deleted (was ${SLABELS[_dt?.status]||_dt?.status||'unknown'}, ${_dt?.hours||0}h, ${_dt?.resId?getRes(_dt.resId)?.name||_dt.resId:'unassigned'})`});
-  TASKS=TASKS.filter(t=>t.id!==_delId);
+  // Collect all descendant IDs (children and their children recursively)
+  const _collectDesc=(pid)=>{
+    const children=TASKS.filter(x=>x.parentId===pid);
+    return children.flatMap(c=>[c.id,..._collectDesc(c.id)]);
+  };
+  const _descIds=_collectDesc(_delId);
+  const _allDelIds=[_delId,..._descIds];
+  TASKS=TASKS.filter(t=>!_allDelIds.includes(t.id));
   CM('m-task');notify('Deleted','warn');
   renderGantt();renderDash();
-  // For deletes, send null for that key to remove from Firebase
-  const _delPatch={}; _delPatch[_delId]=null;
+  // Delete task + all descendants from Firebase
+  const _delPatch={};
+  _allDelIds.forEach(id=>{ _delPatch[id]=null; });
   fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_delPatch)}).catch(()=>{});
-  persistState(['meta']); // just update meta, task delete is immediate above
+  persistState(['meta']);
 };
 
 // ============================================================
@@ -7748,7 +7773,27 @@ window._saveSubtaskEditor=()=>{
   if(!name){notify('Name required','warn');return;}
   const oldSt=JSON.parse(JSON.stringify(st));
   st.name=name;
-  st.resId=document.getElementById('mst-res').value||null;
+  const _newStResId=document.getElementById('mst-res').value||null;
+  // Auto-add resource to parent task if new and not already assigned
+  if(_newStResId&&_newStResId!==st.resId){
+    const _r=getRes(_newStResId);
+    const allResIds=[t.resId,...(t.coResIds||[])].filter(Boolean);
+    if(!allResIds.includes(_newStResId)){
+      // Add as co-resource
+      if(!t.coResIds) t.coResIds=[];
+      t.coResIds.push(_newStResId);
+      // Also add to taskTeams if possible
+      if(_r&&_r.teams?.length){
+        const _tid=_r.teams[0];
+        if(!t.taskTeams) t.taskTeams=[];
+        let _tt=t.taskTeams.find(x=>x.teamId===_tid);
+        if(!_tt){ _tt={teamId:_tid,entries:[]}; t.taskTeams.push(_tt); }
+        if(!_tt.entries.find(e=>e.id===_newStResId)) _tt.entries.push({id:_newStResId,hours:0});
+      }
+      notify((_r?.name||_newStResId)+' added to parent task resources','success');
+    }
+  }
+  st.resId=_newStResId;
   st.hours=parseFloat(document.getElementById('mst-hours').value)||null;
   // start is computed by autoSchedule, not set manually
   st.deadline=document.getElementById('mst-deadline').value||null;
@@ -7895,7 +7940,26 @@ window._cycleSubStatus = (i)=>{
   _autoSaveSubtasks();
 };
 window._renameSubtask   = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].name=v; clearTimeout(window._rnT); window._rnT=setTimeout(_autoSaveSubtasks,600); } };
-window._setSubRes       = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].resId=v||null; _renderSubtaskList(); _autoSaveSubtasks(); } };
+window._setSubRes=(i,v)=>{
+  if(!_curSubtasks[i]) return;
+  _curSubtasks[i].resId=v||null;
+  // Auto-add this resource to the parent task if not already present
+  if(v){
+    const r=getRes(v);
+    const teamId=r?(r.teams||[])[0]||'__unknown__':'__unknown__';
+    let tt=_taskTeams.find(t=>t.teamId===teamId);
+    if(!tt){ tt={teamId,entries:[]}; _taskTeams.push(tt); }
+    if(!tt.entries.find(e=>e.id===v)){
+      tt.entries.push({id:v,hours:0});
+      // Do NOT redistribute hours — keep new resource at 0h
+      _populateResAddFlat();
+      renderTeamResList();
+      notify(getRes(v)?.name+' added to task resources','success');
+    }
+  }
+  _renderSubtaskList();
+  _autoSaveSubtasks();
+};
 window._setSubHours     = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].hours=parseFloat(v)||null; _updateTotalWithSubs(); _autoSaveSubtasks(); } };
 window._setSubDl        = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].deadline=v||null; _autoSaveSubtasks(); } };
 window._setSubStart     = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].start=v?dateToIdx(v):null; _autoSaveSubtasks(); } };
@@ -7903,11 +7967,39 @@ window._setSubStart     = (i,v)=>{ if(_curSubtasks[i]){ _curSubtasks[i].start=v?
 window._autoSaveSubtasks=()=>{
   if(!S.editId) return;
   const t=TASKS.find(x=>x.id===S.editId); if(!t) return;
+  const kept=new Set(_curSubtasks.filter(st=>st.name?.trim()).map(st=>st.id));
+  // Remove promoted children that were deleted from the modal
+  const toDelete=TASKS.filter(x=>x.parentId===S.editId&&!kept.has(x.id));
+  toDelete.forEach(x=>{
+    TASKS.splice(TASKS.indexOf(x),1);
+    const _dp={}; _dp[x.id]=null;
+    fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_dp)}).catch(()=>{});
+  });
   t.subtasks=_curSubtasks.filter(st=>st.name?.trim()).map(st=>({...st,name:st.name.trim()}));
-  const sts=t.subtasks; if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
+  // Also clear subtasks entries that are already in TASKS[] to avoid re-promotion
+  t.subtasks=t.subtasks.filter(st=>!TASKS.find(x=>x.id===st.id&&x.parentId===t.id));
+  const sts=_curSubtasks.filter(st=>st.name?.trim());
+  if(sts.length) t.prog=Math.round(sts.filter(s=>s.status==='done').length/sts.length*100);
   persistState(['tasks'],{tasks:[S.editId]});
 };
-window._delSubtask      = (i)=>{ _curSubtasks.splice(i,1); _renderSubtaskList(); _updateTotalWithSubs(); _autoSaveSubtasks(); };
+window._delSubtask=(i)=>{
+  const st=_curSubtasks[i];
+  if(st&&st.id){
+    // Remove promoted child task from TASKS[] if it exists
+    const childIdx=TASKS.findIndex(x=>x.id===st.id&&x.parentId===S.editId);
+    if(childIdx!==-1){
+      const childId=TASKS[childIdx].id;
+      TASKS.splice(childIdx,1);
+      // Delete from Firebase
+      const _dp={}; _dp[childId]=null;
+      fetch(_FB_ROOT+'/tasks.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_dp)}).catch(()=>{});
+    }
+  }
+  _curSubtasks.splice(i,1);
+  _renderSubtaskList();
+  _updateTotalWithSubs();
+  _autoSaveSubtasks();
+};
 
 window._addSubtask = ()=>{
   _curSubtasks.push({id:'st'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
